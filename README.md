@@ -1,10 +1,10 @@
 # Persephone — Reimagining Git (in Go)
 
-> **Note:** Personal experimental project.  
+> **Note:** Personal experimental project. Originally created in collaboration with [Chandranil Bakshi](https://github.com/chandranilbakshi). Since they are no longer working on it, I am continuing the project here. The original repository is available at [chandranilbakshi/persephone](https://github.com/chandranilbakshi/persephone).
 > No PRs. No contributions. Don’t ask.
 
 ## Vision (why this exists)
-Git is legendary.  
+Git is legendary.
 It’s also old. The world changed: SSDs, CI, huge monorepos, concurrency. Git still behaves like a 2005 CLI tool.
 
 Persephone = “what if we rebuilt Git 2025-first?”
@@ -39,8 +39,8 @@ See: [`Purr Commands Guide`](./Purr%20Commands%20Guide)
 - optional encryption + Ed25519 signing
 
 ## Status
-This is a prototype.  
+This is a prototype.
 It’s here to learn, to question assumptions, and to invent. Not to be “production ready”.
 
-If you want a stable DVCS: use Git.  
+If you want a stable DVCS: use Git.
 If you want to explore what the *next* DVCS could look like: that’s why Persephone exists.
