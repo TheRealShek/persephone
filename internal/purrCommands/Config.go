@@ -1,6 +1,7 @@
 package purrCommands
 
 import (
+	"Persephone/internal/ui"
 	"Persephone/internal/utils"
 	"fmt"
 	"strings"
@@ -40,13 +41,13 @@ func readConfig(key string) error {
 	switch key {
 	case "user.name":
 		if config.UserName == "" {
-			fmt.Println("user.name not set")
+			fmt.Println(ui.Metadata("user.name not set"))
 		} else {
 			fmt.Println(config.UserName)
 		}
 	case "user.email":
 		if config.UserEmail == "" {
-			fmt.Println("user.email not set")
+			fmt.Println(ui.Metadata("user.email not set"))
 		} else {
 			fmt.Println(config.UserEmail)
 		}
@@ -70,10 +71,10 @@ func writeConfig(key, value string) error {
 	switch key {
 	case "user.name":
 		config.UserName = value
-		fmt.Printf("Set user.name = %s\n", value)
+		fmt.Printf("%s %s\n", ui.Metadata("Set user.name ="), value)
 	case "user.email":
 		config.UserEmail = value
-		fmt.Printf("Set user.email = %s\n", value)
+		fmt.Printf("%s %s\n", ui.Metadata("Set user.email ="), value)
 	default:
 		return fmt.Errorf("unknown config key: %s\nValid keys: user.name, user.email", key)
 	}

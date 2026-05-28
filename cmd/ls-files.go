@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"Persephone/internal/purrCommands"
+	"Persephone/internal/ui"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -16,7 +17,7 @@ var lsFilesCmd = &cobra.Command{
 		debug, _ := cmd.Flags().GetBool("debug")
 
 		if err := purrCommands.ListFiles(".", debug); err != nil {
-			fmt.Printf("Error: %v\n", err)
+			fmt.Println(ui.ErrorMessage(err))
 			return
 		}
 	},

@@ -1,6 +1,7 @@
 package purrCommands
 
 import (
+	"Persephone/internal/ui"
 	"Persephone/internal/utils"
 	"fmt"
 	"path/filepath"
@@ -15,34 +16,34 @@ func ListFiles(rootDir string, showDebug bool) error {
 	}
 
 	if len(entries) == 0 {
-		fmt.Println("No files in index")
+		fmt.Println(ui.Metadata("No files in index"))
 		return nil
 	}
 
 	if showDebug {
 		// Detailed output similar to git ls-files --debug
-		fmt.Printf("Found %d file(s) in index:\n\n", len(entries))
+		fmt.Printf("%s\n\n", ui.SectionHeader(fmt.Sprintf("Found %d file(s) in index:", len(entries))))
 		for i, entry := range entries {
 			if i > 0 {
 				fmt.Println()
 			}
-			fmt.Printf("  Path: %s\n", entry.Path)
-			fmt.Printf("  SHA1: %x\n", entry.Sha1)
-			fmt.Printf("  Mode: %06o\n", entry.Mode)
-			fmt.Printf("  Size: %d bytes\n", entry.Size)
-			fmt.Printf("  Mtime: %s\n", entry.Mtime.Format("2006-01-02 15:04:05"))
-			fmt.Printf("  Ctime: %s\n", entry.Ctime.Format("2006-01-02 15:04:05"))
-			fmt.Printf("  Dev: %d\n", entry.Dev)
-			fmt.Printf("  Ino: %d\n", entry.Ino)
-			fmt.Printf("  UID: %d\n", entry.Uid)
-			fmt.Printf("  GID: %d\n", entry.Gid)
-			fmt.Printf("  Stage: %d\n", entry.Stage)
+			fmt.Printf("%s %s\n", ui.Metadata("Path:"), ui.StyledPath(entry.Path))
+			fmt.Printf("%s %s\n", ui.Metadata("SHA1:"), ui.Metadata(fmt.Sprintf("%x", entry.Sha1)))
+			fmt.Printf("%s %s\n", ui.Metadata("Mode:"), ui.Metadata(fmt.Sprintf("%06o", entry.Mode)))
+			fmt.Printf("%s %s\n", ui.Metadata("Size:"), ui.Metadata(fmt.Sprintf("%d bytes", entry.Size)))
+			fmt.Printf("%s %s\n", ui.Metadata("Mtime:"), ui.Metadata(entry.Mtime.Format("2006-01-02 15:04:05")))
+			fmt.Printf("%s %s\n", ui.Metadata("Ctime:"), ui.Metadata(entry.Ctime.Format("2006-01-02 15:04:05")))
+			fmt.Printf("%s %s\n", ui.Metadata("Dev:"), ui.Metadata(fmt.Sprintf("%d", entry.Dev)))
+			fmt.Printf("%s %s\n", ui.Metadata("Ino:"), ui.Metadata(fmt.Sprintf("%d", entry.Ino)))
+			fmt.Printf("%s %s\n", ui.Metadata("UID:"), ui.Metadata(fmt.Sprintf("%d", entry.Uid)))
+			fmt.Printf("%s %s\n", ui.Metadata("GID:"), ui.Metadata(fmt.Sprintf("%d", entry.Gid)))
+			fmt.Printf("%s %s\n", ui.Metadata("Stage:"), ui.Metadata(fmt.Sprintf("%d", entry.Stage)))
 		}
 	} else {
 		// Simple output (default)
-		fmt.Printf("Found %d file(s) in index:\n\n", len(entries))
+		fmt.Printf("%s\n\n", ui.SectionHeader(fmt.Sprintf("Found %d file(s) in index:", len(entries))))
 		for _, entry := range entries {
-			fmt.Printf("%x %06o %s\n", entry.Sha1, entry.Mode, entry.Path)
+			fmt.Printf("%s %s %s\n", ui.Metadata(fmt.Sprintf("%x", entry.Sha1)), ui.Metadata(fmt.Sprintf("%06o", entry.Mode)), ui.StyledPath(entry.Path))
 		}
 	}
 

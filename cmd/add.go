@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"Persephone/internal/purrCommands"
+	"Persephone/internal/ui"
 	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -14,10 +16,10 @@ var addCmd = &cobra.Command{
 		// This function runs when user types: purr add <files>
 		err := purrCommands.AddPurrFiles(args...)
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
+			fmt.Println(ui.ErrorMessage(err))
 			return
 		}
-		fmt.Println("Files added to index")
+		fmt.Println(ui.Successf("Files added to index"))
 	},
 }
 

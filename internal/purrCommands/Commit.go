@@ -1,6 +1,7 @@
 package purrCommands
 
 import (
+	"Persephone/internal/ui"
 	"Persephone/internal/utils"
 	"bytes"
 	"compress/zlib"
@@ -92,7 +93,7 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 		return fmt.Errorf("failed to update HEAD: %w", err)
 	}
 
-	fmt.Printf("[%s] %s\n", commitHash[:7], message)
+	fmt.Printf("%s %s\n", ui.Metadata(fmt.Sprintf("[%s]", commitHash[:7])), message)
 	return nil
 }
 

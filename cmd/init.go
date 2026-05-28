@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"Persephone/internal/purrCommands"
+	"Persephone/internal/ui"
 	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -14,10 +16,10 @@ var initCmd = &cobra.Command{
 		// This function runs when user types: purr init
 		err := purrCommands.InitPurrDirectories(".")
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
+			fmt.Println(ui.ErrorMessage(err))
 			return
 		}
-		fmt.Println("Initialized empty repository")
+		fmt.Println(ui.Successf("Initialized empty repository"))
 	},
 }
 

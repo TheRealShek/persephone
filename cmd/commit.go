@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"Persephone/internal/purrCommands"
+	"Persephone/internal/ui"
 	"Persephone/internal/utils"
 	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -14,24 +16,24 @@ var commitCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		message, _ := cmd.Flags().GetString("message")
 		if message == "" {
-			fmt.Println("Error: commit message is required. Use -m \"message\"")
+			fmt.Println(ui.ErrorText("commit message is required. Use -m \"message\""))
 			return
 		}
 
 		userName, userEmail, err := utils.CheckConfigFile()
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
+			fmt.Println(ui.ErrorMessage(err))
 			return
 		}
 
 		// Now call CommitPurrFiles with the required parameters
 		err = purrCommands.CommitPurrFiles(".", message, userName, userEmail)
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
+			fmt.Println(ui.ErrorMessage(err))
 			return
 		}
 
-		fmt.Println("Changes committed successfully")
+		fmt.Println(ui.Successf("Changes committed successfully"))
 	},
 }
 

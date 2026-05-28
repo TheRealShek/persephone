@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"Persephone/internal/purrCommands"
+	"Persephone/internal/ui"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -22,7 +23,7 @@ Examples:
 		// This function runs when user types: purr config <key> [value]
 		err := purrCommands.ConfigCommand(args...)
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
+			fmt.Println(ui.ErrorMessage(err))
 			return
 		}
 	},

@@ -1,6 +1,7 @@
 package purrCommands
 
 import (
+	"Persephone/internal/ui"
 	"Persephone/internal/utils"
 	"fmt"
 	"log"
@@ -16,20 +17,24 @@ func AddPurrFiles(arg ...string) error {
 	// Case: if `purr init` was not done before, gives an error
 	targetDir := filepath.Join(".", ".purr")
 	ok, err := utils.ExistsAndIsDirectory(targetDir)
-	if err != nil || !ok {
-		fmt.Printf("Error: .purr directory not initialized — %v\n", err)
+	if err != nil {
+		fmt.Println(ui.ErrorMessage(fmt.Errorf("failed to check repository: %w", err)))
+		os.Exit(1)
+	}
+	if !ok {
+		fmt.Println(ui.ErrorText(".purr directory not initialized"))
 		os.Exit(1)
 	}
 	// Get Current Working Directory
 	dirPath, err := os.Getwd()
 	if err != nil {
-		fmt.Printf("Unable to get Working Directory %s \n", err)
+		fmt.Println(ui.ErrorMessage(fmt.Errorf("unable to get working directory: %w", err)))
 		return nil
 	}
 
 	// Case: only `purr add` was written
 	if len(arg) == 0 {
-		fmt.Println("No Files added")
+		fmt.Println(ui.Metadata("No files added"))
 		return nil
 	}
 
@@ -192,7 +197,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			}
 			if isHidden {
 				mu.Lock()
-				fmt.Printf("Skipping hidden file: %s\n", cleanPath)
+				fmt.Printf("%s %s\n", ui.Metadata("Skipping hidden file:"), ui.Metadata(cleanPath))
 				skippedCount++
 				mu.Unlock()
 				return
@@ -208,7 +213,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			fileInfo, err := os.Stat(absPath)
 			if err != nil {
 				mu.Lock()
-				fmt.Printf("Error: cannot stat '%s': %v\n", fp, err)
+				fmt.Println(ui.Errorf("cannot stat '%s': %v", fp, err))
 				mu.Unlock()
 				return
 			}
@@ -216,7 +221,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			// Skip directories
 			if fileInfo.IsDir() {
 				mu.Lock()
-				fmt.Printf("Error: '%s' is a directory (use 'purr add .' to add all files)\n", fp)
+				fmt.Println(ui.Errorf("'%s' is a directory (use 'purr add .' to add all files)", fp))
 				mu.Unlock()
 				return
 			}
@@ -225,7 +230,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			relPath, err := filepath.Rel(path, absPath)
 			if err != nil {
 				mu.Lock()
-				fmt.Printf("Error: failed to get relative path for '%s': %v\n", fp, err)
+				fmt.Println(ui.Errorf("failed to get relative path for '%s': %v", fp, err))
 				mu.Unlock()
 				return
 			}
@@ -233,7 +238,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			// Validate file is within repository (not outside with ../)
 			if strings.HasPrefix(relPath, "..") {
 				mu.Lock()
-				fmt.Printf("Error: '%s' is outside repository\n", fp)
+				fmt.Println(ui.Errorf("'%s' is outside repository", fp))
 				mu.Unlock()
 				return
 			}
@@ -245,7 +250,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			if exists {
 				// Skip if file hasn't been modified
 				if fileInfo.ModTime().Equal(existingEntry.Mtime) {
-					fmt.Printf("Unchanged: %s\n", relPath)
+					fmt.Printf("%s %s\n", ui.Modified("Unchanged:"), ui.StyledPath(relPath))
 					skippedCount++
 					shouldSkip = true
 				}
@@ -260,7 +265,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			hash, err := utils.WriteBlobWithSHA(path, absPath)
 			if err != nil {
 				mu.Lock()
-				fmt.Printf("Error: failed to create blob for '%s': %v\n", fp, err)
+				fmt.Println(ui.Errorf("failed to create blob for '%s': %v", fp, err))
 				mu.Unlock()
 				return
 			}
@@ -272,7 +277,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			// Update map with lock
 			mu.Lock()
 			indexMap[relPath] = &newEntry
-			fmt.Printf("Added: %s\n", relPath)
+			fmt.Printf("%s %s\n", ui.Added("Added:"), ui.StyledPath(relPath))
 			addedCount++
 			mu.Unlock()
 
@@ -301,13 +306,14 @@ func addSpecificPurrFiles(path string, files []string) error {
 			return fmt.Errorf("failed to write index: %w", err)
 		}
 
-		fmt.Printf("\nSuccessfully added %d file(s) to index", addedCount)
+		fmt.Printf("\n%s", ui.Successf("Successfully added %d file(s) to index", addedCount))
 		if skippedCount > 0 {
-			fmt.Printf(" (%d skipped)", skippedCount)
+			fmt.Printf(" %s", ui.Metadataf("(%d skipped)", skippedCount))
 		}
 		fmt.Println()
 	} else {
-		fmt.Println("\nNo files were added to index")
+		fmt.Println()
+		fmt.Println(ui.Metadata("No files were added to index"))
 	}
 
 	return nil
