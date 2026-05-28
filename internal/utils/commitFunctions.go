@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 )
 
 /*
@@ -108,8 +107,11 @@ func BuildCommitObject(commit *CommitObj) ([]byte, error) {
 		content.WriteString(fmt.Sprintf("parent %s\n", commit.ParentHash))
 	}
 
-	// Timestamp (current time)
-	timestamp := time.Now().Unix()
+	// Timestamp
+	if commit.Timestamp.IsZero() {
+		return nil, fmt.Errorf("commit timestamp is required")
+	}
+	timestamp := commit.Timestamp.Unix()
 	timezone := "+0000" // UTC
 
 	// Author line

@@ -72,7 +72,7 @@ No env vars required. No external services.
 | `internal/utils/commitFunctions.go` | Tree/commit object building, SHA-1 computation, zlib compression |
 | `internal/utils/shaFunctions.go` | SHA-1 blob hashing (`WriteBlobWithSHA`) |
 | `internal/utils/config.go` | Global config read/write (`~/.purrconfig`) |
-| `DOCS/` | Design documents: Git internals, limitations, Phase 1 plan, command implementation flows |
+| Docs/ | Design documents: Git internals, limitations, Phase 1 plan, command implementation flows |
 | `Purr Commands Guide` | User-facing command reference (linked from README) |
 
 

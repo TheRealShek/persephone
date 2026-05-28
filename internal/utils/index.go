@@ -23,9 +23,13 @@ func ReadIndex(indexPath string) ([]IndexEntry, error) {
 	buf := bytes.NewReader(data) // creates a readable buffer from a byte slice
 	var entries []IndexEntry
 
-	// Skip 12-byte header
-	if _, err := buf.Seek(12, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("invalid index header: %w", err)
+	// Read and validate 12-byte header
+	header := make([]byte, 12)
+	if n, err := buf.Read(header); err != nil || n != 12 {
+		return nil, fmt.Errorf("failed to read index header: %w", err)
+	}
+	if string(header[:4]) != "DIRC" {
+		return nil, fmt.Errorf("invalid index header: expected DIRC, got %s", string(header[:4]))
 	}
 
 	for buf.Len() > 0 {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 func CommitPurrFiles(path, message, authorName, authorEmail string) error {
@@ -61,6 +62,7 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 		Author:     authorInfo,
 		Committer:  authorInfo,
 		Message:    message,
+		Timestamp:  time.Now(),
 	}
 
 	// Compute commit hash

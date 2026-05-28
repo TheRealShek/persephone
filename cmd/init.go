@@ -12,14 +12,14 @@ import (
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize a new repository",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// This function runs when user types: purr init
 		err := purrCommands.InitPurrDirectories(".")
 		if err != nil {
-			fmt.Println(ui.ErrorMessage(err))
-			return
+			return err
 		}
 		fmt.Println(ui.Successf("Initialized empty repository"))
+		return nil
 	},
 }
 

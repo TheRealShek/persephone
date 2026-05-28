@@ -47,4 +47,5 @@ type CommitObj struct {
 	Author     PurrConfig `json:"author"`    // Author information
 	Committer  PurrConfig `json:"committer"` // Committer information (usually same as author)
 	Message    string     `json:"message"`   // Commit message
+	Timestamp  time.Time  `json:"timestamp"` // Unix timestamp for determinism
 }

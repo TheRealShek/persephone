@@ -9,6 +9,9 @@ import (
 
 // GetConfigPath returns the path to the .purrconfig file in the user's home directory
 func GetConfigPath() (string, error) {
+	if envPath := os.Getenv("PURR_CONFIG_PATH"); envPath != "" {
+		return envPath, nil
+	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)

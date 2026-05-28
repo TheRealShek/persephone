@@ -15,12 +15,22 @@ var (
 	styleOnce sync.Once
 	enabled   bool
 
-	greenStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	redStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	yellowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	cyanStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
-	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	boldStyle   = lipgloss.NewStyle().Bold(true)
+	// Vibrant, modern hex-based terminal color palette
+	greenStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#22C55E")).Bold(true) // Emerald Green
+	redStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444")).Bold(true) // Coral Red
+	yellowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B")).Bold(true) // Amber Orange
+	cyanStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#06B6D4")).Bold(true) // Electric Cyan
+	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))            // Cool Slate Gray
+	boldStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#F1F5F9"))
+
+	// Custom UI Element styles
+	branchStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#C084FC")).Bold(true) // Violet Branch
+	pathStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#3B82F6")).Bold(true) // Ocean Blue Path
+	dirStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#60A5FA"))            // Muted Sky Blue Directories
+	successBadge = lipgloss.NewStyle().Background(lipgloss.Color("#15803D")).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 1).Bold(true)
+	infoBadge    = lipgloss.NewStyle().Background(lipgloss.Color("#0369A1")).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 1).Bold(true)
+	errorBadge   = lipgloss.NewStyle().Background(lipgloss.Color("#B91C1C")).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 1).Bold(true)
+	headerStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#F472B6")).Bold(true).Underline(true) // Rose Pink Accent
 )
 
 func Enabled() bool {
@@ -65,7 +75,7 @@ func Metadata(text string) string {
 }
 
 func SectionHeader(text string) string {
-	return render(boldStyle, text)
+	return render(headerStyle, text)
 }
 
 func ErrorText(text string) string {
@@ -81,11 +91,21 @@ func ErrorMessage(err error) string {
 }
 
 func Successf(format string, args ...any) string {
-	return Added(fmt.Sprintf(format, args...))
+	if !Enabled() {
+		return fmt.Sprintf(format, args...)
+	}
+	badge := successBadge.Render(" SUCCESS ")
+	text := greenStyle.Render(fmt.Sprintf(format, args...))
+	return fmt.Sprintf("%s %s", badge, text)
 }
 
 func Infof(format string, args ...any) string {
-	return Info(fmt.Sprintf(format, args...))
+	if !Enabled() {
+		return fmt.Sprintf(format, args...)
+	}
+	badge := infoBadge.Render(" INFO ")
+	text := cyanStyle.Render(fmt.Sprintf(format, args...))
+	return fmt.Sprintf("%s %s", badge, text)
 }
 
 func Metadataf(format string, args ...any) string {
@@ -93,7 +113,12 @@ func Metadataf(format string, args ...any) string {
 }
 
 func Errorf(format string, args ...any) string {
-	return ErrorText(fmt.Sprintf(format, args...))
+	if !Enabled() {
+		return fmt.Sprintf(format, args...)
+	}
+	badge := errorBadge.Render(" ERROR ")
+	text := redStyle.Render(fmt.Sprintf(format, args...))
+	return fmt.Sprintf("%s %s", badge, text)
 }
 
 func DiffAddedLine(line string) string {
@@ -124,15 +149,15 @@ func StatusPrefix(code string) string {
 }
 
 func BranchName(name string) string {
-	return Info(name)
+	return render(branchStyle, name)
 }
 
 func DirectoryName(name string) string {
-	return Info(name)
+	return render(dirStyle, name)
 }
 
 func FileName(name string) string {
-	return name
+	return render(pathStyle, name)
 }
 
 func StyledPath(path string) string {

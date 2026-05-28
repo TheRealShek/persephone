@@ -3,8 +3,8 @@ package purrCommands
 import (
 	"Persephone/internal/ui"
 	"Persephone/internal/utils"
+	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,18 +18,15 @@ func AddPurrFiles(arg ...string) error {
 	targetDir := filepath.Join(".", ".purr")
 	ok, err := utils.ExistsAndIsDirectory(targetDir)
 	if err != nil {
-		fmt.Println(ui.ErrorMessage(fmt.Errorf("failed to check repository: %w", err)))
-		os.Exit(1)
+		return fmt.Errorf("failed to check repository: %w", err)
 	}
 	if !ok {
-		fmt.Println(ui.ErrorText(".purr directory not initialized"))
-		os.Exit(1)
+		return fmt.Errorf(".purr directory not initialized")
 	}
 	// Get Current Working Directory
 	dirPath, err := os.Getwd()
 	if err != nil {
-		fmt.Println(ui.ErrorMessage(fmt.Errorf("unable to get working directory: %w", err)))
-		return nil
+		return fmt.Errorf("unable to get working directory: %w", err)
 	}
 
 	// Case: only `purr add` was written
@@ -40,11 +37,10 @@ func AddPurrFiles(arg ...string) error {
 
 	//Detect if the user passed . (all files) or specific files.
 	if len(arg) == 1 && arg[0] == "." {
-		addAllPurrFiles(dirPath)
+		return addAllPurrFiles(dirPath)
 	} else {
-		addSpecificPurrFiles(dirPath, arg)
+		return addSpecificPurrFiles(dirPath, arg)
 	}
-	return nil
 }
 
 // Called by func AddPurrFiles() when User passed `purr add .` (all files)
@@ -67,6 +63,7 @@ func addAllPurrFiles(path string) error {
 	semaphore := make(chan struct{}, numWorkers)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
+	var processingErrs []error
 
 	utils.WalkAndAddFiles(path, func(filePath string) error {
 		wg.Add(1)
@@ -78,19 +75,25 @@ func addAllPurrFiles(path string) error {
 			// Getting file Info
 			fileInfo, err := os.Stat(tempPath)
 			if err != nil {
-				log.Printf("failed to stat %s: %v", tempPath, err)
+				mu.Lock()
+				processingErrs = append(processingErrs, fmt.Errorf("failed to stat %s: %w", tempPath, err))
+				mu.Unlock()
 				return
 			}
 
 			// Get relative path from repo root
 			relPath, err := filepath.Rel(path, tempPath)
 			if err != nil {
-				log.Printf("failed to get relative path for %s: %v", tempPath, err)
+				mu.Lock()
+				processingErrs = append(processingErrs, fmt.Errorf("failed to get relative path for %s: %w", tempPath, err))
+				mu.Unlock()
 				return
 			}
 
 			// Check if file exists in index
+			mu.Lock()
 			existingEntry, exists := indexMap[relPath]
+			mu.Unlock()
 			if exists {
 				if fileInfo.ModTime().Equal(existingEntry.Mtime) {
 					return
@@ -100,7 +103,9 @@ func addAllPurrFiles(path string) error {
 			// File is new or modified - write blob
 			hash, err := utils.WriteBlobWithSHA(path, tempPath)
 			if err != nil {
-				log.Printf("failed to write blob with SHA for %s: %v", tempPath, err)
+				mu.Lock()
+				processingErrs = append(processingErrs, fmt.Errorf("failed to write blob for %s: %w", tempPath, err))
+				mu.Unlock()
 				return
 			}
 
@@ -119,6 +124,11 @@ func addAllPurrFiles(path string) error {
 
 	// Wait for all goroutines to finish
 	wg.Wait()
+
+	// Abort if any file failed
+	if len(processingErrs) > 0 {
+		return fmt.Errorf("purr add failed: %w", errors.Join(processingErrs...))
+	}
 
 	// Convert map to slice after all updates are complete
 	var updatedEntries []utils.IndexEntry
@@ -169,6 +179,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 	var addedCount, skippedCount int
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	var processingErrs []error
 
 	// Use up to 5× CPU cores as worker limit
 	numWorkers := runtime.NumCPU() * 5
@@ -213,7 +224,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			fileInfo, err := os.Stat(absPath)
 			if err != nil {
 				mu.Lock()
-				fmt.Println(ui.Errorf("cannot stat '%s': %v", fp, err))
+				processingErrs = append(processingErrs, fmt.Errorf("cannot stat '%s': %w", fp, err))
 				mu.Unlock()
 				return
 			}
@@ -221,7 +232,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			// Skip directories
 			if fileInfo.IsDir() {
 				mu.Lock()
-				fmt.Println(ui.Errorf("'%s' is a directory (use 'purr add .' to add all files)", fp))
+				processingErrs = append(processingErrs, fmt.Errorf("'%s' is a directory (use 'purr add .' to add all files)", fp))
 				mu.Unlock()
 				return
 			}
@@ -230,7 +241,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			relPath, err := filepath.Rel(path, absPath)
 			if err != nil {
 				mu.Lock()
-				fmt.Println(ui.Errorf("failed to get relative path for '%s': %v", fp, err))
+				processingErrs = append(processingErrs, fmt.Errorf("failed to get relative path for '%s': %w", fp, err))
 				mu.Unlock()
 				return
 			}
@@ -238,7 +249,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			// Validate file is within repository (not outside with ../)
 			if strings.HasPrefix(relPath, "..") {
 				mu.Lock()
-				fmt.Println(ui.Errorf("'%s' is outside repository", fp))
+				processingErrs = append(processingErrs, fmt.Errorf("'%s' is outside repository", fp))
 				mu.Unlock()
 				return
 			}
@@ -265,7 +276,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			hash, err := utils.WriteBlobWithSHA(path, absPath)
 			if err != nil {
 				mu.Lock()
-				fmt.Println(ui.Errorf("failed to create blob for '%s': %v", fp, err))
+				processingErrs = append(processingErrs, fmt.Errorf("failed to create blob for '%s': %w", fp, err))
 				mu.Unlock()
 				return
 			}
@@ -286,6 +297,11 @@ func addSpecificPurrFiles(path string, files []string) error {
 
 	// Wait for all goroutines to finish
 	wg.Wait()
+
+	// Abort if any file failed
+	if len(processingErrs) > 0 {
+		return fmt.Errorf("purr add failed: %w", errors.Join(processingErrs...))
+	}
 
 	// Only write index if something was added or modified
 	if addedCount > 0 {

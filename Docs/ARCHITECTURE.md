@@ -1,6 +1,6 @@
-# Purr — Architecture Redesign
+# Purr — Architecture Design & Sequence Flows
 
-**Date:** 2026-05-28 · **Status:** Proposal
+This document details the software design, sequence flows, and internal implementations of each custom **Purr** command, as well as the overarching codebase restructuring proposals.
 
 ---
 
@@ -44,10 +44,6 @@ internal/
 
 ```
 Persephone/
-├── cmd/
-│   └── purr/
-│       └── main.go                  # Entrypoint only: cmd.Execute()
-│
 ├── cli/                             # Cobra command definitions (porcelain)
 │   ├── root.go
 │   ├── init.go
@@ -118,7 +114,7 @@ Persephone/
 │       ├── memfs.go                # In-memory FS for testing
 │       └── atomic.go               # AtomicWrite: write-to-temp → fsync → rename
 │
-├── DOCS/
+├── Docs/
 ├── Makefile
 ├── go.mod
 └── README.md
@@ -233,121 +229,218 @@ type RefStore interface {
 }
 ```
 
-```go
-// repository/repository.go — the central handle
-type Repository struct {
-    RootDir    string
-    FS         fs.FS
-    Objects    storage.ObjectStore
-    Index      *index.Index
-    Refs       refs.RefStore
-    Config     *config.Config
-}
-
-func Open(path string) (*Repository, error)    // find .purr, wire deps
-func Init(path string) (*Repository, error)    // create .purr, wire deps
-```
-
-**Why these interfaces matter:**
-- `FS` → swap real disk for in-memory in tests. No temp dirs needed.
-- `ObjectStore` → can later add packfile backend without changing any command code
-- `RefStore` → can later add reflog without touching commit logic
-- `Repository` → commands get a single dependency instead of 6 scattered function calls
-
 ---
 
-## 6. What Must Be Redesigned Before Scaling
+## 6. Command sequence flows
 
-Ordered by priority. Do these before adding any new commands.
+### 6.1 `purr init`
 
-### 6.1 Platform isolation (blocks: building on Linux at all)
+Initializes a local repository with the necessary directory hierarchy and metadata configuration.
 
-Extract `PopulateAllIndexField` into `platform/stat_{os}.go` files. Extract `Init.go` Windows hidden-file logic into `platform/hidden_{os}.go`. Add build tags. This is prerequisite to everything else because **the project doesn't compile on Linux**.
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as cmd/init.go (Cobra)
+    participant Core as internal/purrCommands/Init.go
+    participant OS as Filesystem
 
-### 6.2 Repository handle (blocks: every other refactor)
-
-Create `repository.Repository` that holds root path and resolves all `.purr/` paths. Currently 27 scattered `filepath.Join(".purr", ...)` calls make every function implicitly depend on CWD. A repo handle eliminates this and enables:
-- Running commands from subdirectories
-- Testing with temp directories
-- Future multi-repo operations
-
-### 6.3 FS abstraction + atomic writes (blocks: data safety)
-
-Create `fs.FS` interface. Wrap all `os.ReadFile`/`os.WriteFile` calls. Implement `AtomicWrite` (write temp → fsync → rename). This fixes AUDIT finding C2 across the entire codebase in one shot.
-
-### 6.4 Object model separation (blocks: correct tree building)
-
-Move blob/tree/commit types and serialization into `object/`. Currently `BuildTreeObject` and `BuildCommitObject` live in `commitFunctions.go` next to `GetParentCommit` and `CheckConfigFile`. These have completely different responsibilities and change for different reasons.
-
-### 6.5 Concurrency extraction (blocks: testability of add logic)
-
-The goroutine pool in `Add.go` is tangled with business logic (stat checking, index lookup, blob writing). Extract the "what to do per file" logic into a pure function, then wrap it in a generic concurrent executor that the command invokes. The command shouldn't own `sync.Mutex` or `chan struct{}`.
-
-### 6.6 Delete dead code
-
-`GetParentCommit`, `UpdateBranchRef`, `Index` struct in types.go, `TreeEntries.Filename` field — all unused. Remove before they confuse future contributors.
-
----
-
-## 7. Migration Path
-
-You don't need to do this all at once. Here's the order that minimizes breakage:
-
-```
-Phase 1: Compile on all platforms
-  └─ Create platform/ with build tags
-  └─ Move Win32 stat + hidden file logic
-  └─ Verify: `go build` on Linux
-
-Phase 2: Central repository handle
-  └─ Create repository.Repository with root path + path helpers
-  └─ Thread it through existing commands (replace bare path strings)
-  └─ No interface changes yet, just consolidate path resolution
-
-Phase 3: FS abstraction
-  └─ Create fs.FS interface + osfs implementation
-  └─ Inject into Repository
-  └─ Implement AtomicWrite, use it in index.WriteIndex + storage
-
-Phase 4: Separate domain packages
-  └─ Move types into their owning packages (IndexEntry → index/, CommitObj → object/)
-  └─ Move serialization with them
-  └─ Move storage (StoreObject, loose object layout) into storage/
-
-Phase 5: Extract command logic
-  └─ Move command business logic from purrCommands/ to command/
-  └─ Commands take *Repository, return errors — no os.Exit, no fmt.Print
-  └─ CLI layer handles output formatting and exit codes
-
-Phase 6: Worktree + concurrency
-  └─ Create worktree/ for file walking and status
-  └─ Build concurrent file processor as reusable utility
-  └─ Add.go becomes: resolve files → worktree.Walk → concurrent hash → index.Update
+    User->>CLI: Runs "purr init"
+    CLI->>Core: InitPurrDirectories(".")
+    
+    activate Core
+    Core->>OS: os.MkdirAll(".purr/{objects,refs/heads,logs}")
+    Note over Core,OS: If OS is Windows, sets .purr directory as hidden
+    
+    Core->>OS: Write valid 12-byte header to ".purr/index"
+    Note over Core,OS: Header: "DIRC" (4B) | Version 2 (4B) | Count 0 (4B)
+    
+    Core->>OS: Write "ref: refs/heads/main\n" to ".purr/HEAD"
+    
+    Core-->>CLI: Returns success status (nil)
+    deactivate Core
+    
+    CLI-->>User: Prints "Initialized empty repository"
 ```
 
-Each phase compiles and works independently. No big-bang rewrite.
+1. **Invocation**: The user executes `purr init`. The runtime invokes the entrypoint in `cmd/init.go`.
+2. **Directory Bootstrapping**: Core calls `InitPurrDirectories(".")` inside `internal/purrCommands/Init.go`. It builds `.purr/objects`, `.purr/refs/heads`, and `.purr/logs`.
+3. **OS-Specific Adjustments**: On Windows platforms, `.purr` is set to "hidden" using syscalls.
+4. **Staging Index Creation**: Writes a valid 12-byte binary index header if the file is missing:
+   - Magic signature: `"DIRC"` (4 bytes)
+   - Staging Version: `2` (4 bytes, big-endian)
+   - Initial count of entries: `0` (4 bytes, big-endian)
+5. **HEAD Initialization**: Writes `"ref: refs/heads/main\n"` to `.purr/HEAD`, binding active tracking to the `main` branch.
 
----
+### 6.2 `purr ls-files`
 
-## 8. Current → Proposed File Mapping
+Lists all files currently tracked in the staging index.
 
-| Current file | Goes to | Notes |
-|---|---|---|
-| `cmd/purr/main.go` | `cmd/purr/main.go` | No change |
-| `cmd/root.go` | `cli/root.go` | Rename package |
-| `cmd/add.go` | `cli/add.go` | Thin Cobra wrapper only |
-| `cmd/commit.go` | `cli/commit.go` | Remove `utils` import |
-| `cmd/init.go` | `cli/init.go` | |
-| `cmd/config.go` | `cli/config.go` | |
-| `cmd/ls-files.go` | `cli/ls_files.go` | |
-| `purrCommands/Add.go` | `command/add.go` + `worktree/worktree.go` | Split: logic vs tree walking |
-| `purrCommands/Commit.go` | `command/commit.go` | Remove zlib, tree building |
-| `purrCommands/Config.go` | `command/config.go` | |
-| `purrCommands/Init.go` | `command/init.go` + `platform/hidden_*.go` | Split: logic vs Windows API |
-| `purrCommands/LsFiles.go` | `command/ls_files.go` | |
-| `utils/types.go` | Split: `index/entry.go`, `object/commit.go`, `object/tree.go`, `config/config.go` | Each type goes to its domain |
-| `utils/index.go` | `index/codec.go` | |
-| `utils/shaFunctions.go` | `hash/hash.go` + `storage/loose.go` | Split: hashing vs storing |
-| `utils/commitFunctions.go` | `object/tree.go`, `object/commit.go`, `refs/head.go` | Split by responsibility |
-| `utils/config.go` | `config/config.go` | |
-| `utils/utils.go` | Split: `storage/loose.go`, `platform/stat_*.go`, `refs/head.go`, `worktree/worktree.go` | God file decomposed |
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as cmd/ls-files.go (Cobra)
+    participant Core as internal/purrCommands/LsFiles.go
+    participant Utils as internal/utils (Index Reader)
+
+    User->>CLI: Runs "purr ls-files [--debug]"
+    CLI->>Core: ListFiles(showDebug)
+    
+    activate Core
+    Core->>Utils: ReadIndex(".purr/index")
+    Utils-->>Core: Slice of Index entries
+    
+    alt Index is Empty
+        Core-->>CLI: Print "No files in index"
+    else Index Contains Entries
+        loop for each entry
+            alt showDebug == true
+                Core-->>CLI: Print detailed structural metadata
+            else showDebug == false
+                Core-->>CLI: Print simple "SHA-1  mode  path"
+            end
+        end
+    end
+    
+    Core-->>CLI: Returns nil (success)
+    deactivate Core
+    CLI-->>User: Displays list outputs
+```
+
+1. **Loading Index**: The CLI calls `ListFiles(showDebug)` in `internal/purrCommands/LsFiles.go`. It reads the binary database under `.purr/index` using the `utils.ReadIndex` library helper.
+2. **Empty Bounds Handling**: If the index contains `0` records, the command exits with `"No files in index"`.
+3. **Output Rendering**:
+   - **Default Mode**: Displays the calculated object hash, file mode, and relative path.
+   - **Debug Mode**: Prints detailed binary index records, including timestamps (`mtime`, `ctime`), host attributes (`dev`, `ino`, `uid`, `gid`), file sizes, and stage parameters.
+
+### 6.3 `purr config`
+
+Manages configuration files on the local machine.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as cmd/config.go (Cobra)
+    participant Core as internal/purrCommands/Config.go
+    participant OS as ~/.purrconfig
+
+    alt Read Key
+        User->>CLI: Runs "purr config <key>"
+        CLI->>Core: ConfigCommand(key)
+        Core->>OS: Load config parameters
+        OS-->>Core: Values
+        Core-->>User: Prints value of key (e.g. user.name)
+    else Write Key-Value
+        User->>CLI: Runs "purr config <key> <value>"
+        CLI->>Core: ConfigCommand(key, value)
+        Core->>OS: Write updated key-value parameter
+        OS-->>Core: Success
+        Core-->>User: Prints confirmation message
+    end
+```
+
+1. **Invocation**: The user executes `purr config <key> [value]`.
+2. **CLI Routing**: Handles read or write modes depending on the argument length:
+   - **Read Mode** (1 argument): Invokes `utils.ReadConfig()` to load the global configuration file (`~/.purrconfig`) and outputs the value of the requested key.
+   - **Write Mode** (2+ arguments): Loads current configs, modifies the key, and writes changes back to `~/.purrconfig`.
+
+### 6.4 `purr add`
+
+Walks directories concurrently and stages new or modified files in the `.purr` index.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as cmd/add.go (Cobra)
+    participant Core as internal/purrCommands/Add.go
+    participant WP as Worker Pool (Goroutines)
+    participant OS as Filesystem
+
+    User->>CLI: Runs "purr add ." or "purr add <file>"
+    CLI->>Core: AddPurrFiles(args...)
+    
+    activate Core
+    Core->>OS: Check if ".purr" folder exists
+    
+    alt Add All ("add .")
+        Core->>OS: Walk directory tree recursively
+        OS-->>Core: Return file paths (skipping hidden objects)
+    else Add Specific Files
+        Core->>Core: Filter out invalid / out-of-bounds files
+    end
+    
+    loop For each eligible file (Concurrent Worker Pool)
+        Core->>WP: Spawn hash and compress task
+        WP->>OS: Compute file hash & write compressed zlib blob
+        WP-->>Core: Return generated blob SHA-1 and file size
+    end
+    
+    Core->>Core: Sort updated index entries alphabetically
+    Core->>OS: Write new serialized index to ".purr/index"
+    
+    Core-->>CLI: Return success status
+    deactivate Core
+    CLI-->>User: Displays staging results summary
+```
+
+1. **Directory Checks**: Core calls `AddPurrFiles(args...)` from `internal/purrCommands/Add.go`, validating that the directory has been initialized with a `.purr` storage root.
+2. **Workspace Traversal**:
+   - **Staging All**: Walks the current directory recursively skipping hidden folders and `.purr` contents.
+   - **Staging Specific Paths**: Collects the files listed in the arguments, filtering out missing or out-of-bounds files.
+3. **Concurrent Hashing (Worker Pool)**: For modified or new files, tasks are distributed to a concurrent worker pool:
+   - Calculates the `SHA-1` checksum of the file's raw content.
+   - Writes a zlib-compressed blob object to `.purr/objects/XX/YYYY...` only if the file content has changed.
+4. **Index Serialization**: Integrates new file entries, sorts the index collection alphabetically by path, and performs an atomic write to `.purr/index`.
+
+### 6.5 `purr commit`
+
+Generates an immutable commit snapshot containing the staged workspace states.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as cmd/commit.go (Cobra)
+    participant Core as internal/purrCommands/Commit.go
+    participant OS as Filesystem (.purr/)
+
+    User->>CLI: Runs "purr commit -m <msg>"
+    CLI->>Core: CommitPurrFiles(message)
+    
+    activate Core
+    Core->>OS: Check if ".purr" is initialized
+    Core->>OS: Read current index entries & active HEAD pointer
+    
+    Core->>Core: Convert index records into Tree entries
+    Core->>Core: Serialize and compute Tree SHA-1
+    
+    opt Parent commit exists
+        Core->>OS: Read parent commit's Tree hash
+        alt Tree hashes match (No modifications)
+            Core-->>CLI: Print "No changes to commit" (Aborts execution)
+        end
+    end
+    
+    Core->>OS: Write zlib-compressed Tree object to "objects/"
+    
+    Core->>Core: Build Commit metadata (Tree hash, parent, author, message, timestamp)
+    Core->>Core: Compute Commit SHA-1
+    Core->>OS: Write zlib-compressed Commit object to "objects/"
+    
+    Core->>OS: Update refs/heads/<branch> or HEAD with new Commit SHA-1
+    
+    Core-->>CLI: Returns new Commit SHA-1
+    deactivate Core
+    CLI-->>User: Displays successful Commit SHA-1
+```
+
+1. **Metadata Setup**: Extracts current stage data from `.purr/index` and fetches the parent commit reference by reading the local branch ref pointed to by `.purr/HEAD`.
+2. **Tree Object Assembly**:
+   - Groups index files into directory entries.
+   - Serializes folders into standard Tree format entries.
+   - Computes the Tree `SHA-1` hash.
+3. **Deduplication Validation**: Compares the new Tree hash with the parent commit's Tree hash. If they are identical, the commit is aborted since no changes have been staged.
+4. **Write Objects**:
+   - Writes the compressed Tree object into the database.
+   - Generates Commit metadata (Tree hash, Parent hash, Author name/email, message, and timestamp).
+   - Computes the Commit `SHA-1` hash.
+   - Writes the compressed Commit object into the database.
+5. **Updating Refs**: Updates the target branch pointer (e.g., `.purr/refs/heads/main`) to point to the new commit's `SHA-1` hash.
