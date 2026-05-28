@@ -16,7 +16,7 @@ is the first 2 characters of the hash and yyyy... is the remaining hash. This ma
 Git's object storage format, allowing content-addressable storage where the hash serves
 as the unique identifier for the file's contents.
 */
-func WriteBlobWithSHA(filePath string) ([20]byte, error) {
+func WriteBlobWithSHA(rootDir string, filePath string) ([20]byte, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		fmt.Printf("Error reading file %s: %v\n", filePath, err)
@@ -37,7 +37,7 @@ func WriteBlobWithSHA(filePath string) ([20]byte, error) {
 	w.Close()
 
 	// Call helper to store object
-	err = StoreObject(hashStr, compressed.Bytes())
+	err = StoreObject(rootDir, hashStr, compressed.Bytes())
 	if err != nil {
 		return [20]byte{}, err
 	}

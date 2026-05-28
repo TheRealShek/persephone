@@ -240,8 +240,8 @@ func CheckConfigFile() (string, string, error) {
 // The commit object is expected to be stored in .purr/objects/{first2}/{rest} (zlib-compressed).
 // It decompresses the object, skips the header ("commit <size>\0"), and parses the first line
 // to find the "tree <hash>" entry. Returns the tree hash string, or an error if not found or invalid.
-func GetCommitTreeHash(commitHash string) (string, error) {
-	objPath := filepath.Join(".purr", "objects", commitHash[:2], commitHash[2:])
+func GetCommitTreeHash(rootDir string, commitHash string) (string, error) {
+	objPath := filepath.Join(rootDir, ".purr", "objects", commitHash[:2], commitHash[2:])
 	compressed, err := os.ReadFile(objPath)
 	if err != nil {
 		return "", err

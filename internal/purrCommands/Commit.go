@@ -32,16 +32,16 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 	w.Write(treeContent)
 	w.Close()
 
-	err = utils.StoreObject(treeHash, compressed.Bytes())
+	err = utils.StoreObject(path, treeHash, compressed.Bytes())
 	if err != nil {
 		return fmt.Errorf("failed to store tree object: %w", err)
 	}
 
 	// Get parent commit hash (empty string if first commit)
-	parentHash, err := utils.GetHEADCommit()
+	parentHash, err := utils.GetHEADCommit(path)
 	if err == nil && parentHash != "" {
 		// Get parent commit's tree hash
-		parentTreeHash, err := utils.GetCommitTreeHash(parentHash)
+		parentTreeHash, err := utils.GetCommitTreeHash(path, parentHash)
 		if err == nil && parentTreeHash == treeHash {
 			return fmt.Errorf("nothing to commit, working tree clean")
 		}
@@ -81,13 +81,13 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 	w.Close()
 
 	// Store the commit object in .purr/objects/{hash[:2]}/{hash[2:]}
-	err = utils.StoreObject(commitHash, compressed.Bytes())
+	err = utils.StoreObject(path, commitHash, compressed.Bytes())
 	if err != nil {
 		return fmt.Errorf("failed to store commit object: %w", err)
 	}
 
 	// Update HEAD to point to this new commit
-	err = utils.UpdateHEAD(commitHash)
+	err = utils.UpdateHEAD(path, commitHash)
 	if err != nil {
 		return fmt.Errorf("failed to update HEAD: %w", err)
 	}

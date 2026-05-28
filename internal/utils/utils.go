@@ -1,14 +1,13 @@
 package utils
 
 import (
+	"Persephone/internal/platform"
 	"fmt"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
-	"time"
 )
 
 // ExistsAndIsDirectory checks if the given path exists and is present in the directory.
@@ -64,8 +63,8 @@ func WalkAndAddFiles(root string, handleFile func(string) error) error {
 }
 
 // StoreObject handles creating directories and writing compressed blob
-func StoreObject(hashStr string, data []byte) error {
-	dir := filepath.Join(".purr", "objects", hashStr[:2])
+func StoreObject(rootDir string, hashStr string, data []byte) error {
+	dir := filepath.Join(rootDir, ".purr", "objects", hashStr[:2])
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -77,18 +76,18 @@ func StoreObject(hashStr string, data []byte) error {
 /*
 *
 PopulateAllIndexField creates an IndexEntry from the provided os.FileInfo and relative path.
-It extracts file metadata, handling Windows-specific fields, and populates all index fields.
+It extracts file metadata using platform-specific stat extraction, and populates all index fields.
 */
 func PopulateAllIndexField(fileInfo os.FileInfo, relPath string) IndexEntry {
-	stat := fileInfo.Sys().(*syscall.Win32FileAttributeData)
+	stat := platform.ExtractStat(fileInfo)
 	return IndexEntry{
-		Ctime: time.Unix(0, stat.CreationTime.Nanoseconds()),
+		Ctime: stat.Ctime,
 		Mtime: fileInfo.ModTime(),
-		Dev:   0, // Not applicable on Windows
-		Ino:   0, // Not applicable on Windows
+		Dev:   stat.Dev,
+		Ino:   stat.Ino,
 		Mode:  uint32(fileInfo.Mode()),
-		Uid:   0, // Not applicable on Windows
-		Gid:   0, // Not applicable on Windows
+		Uid:   stat.Uid,
+		Gid:   stat.Gid,
 		Size:  uint32(fileInfo.Size()),
 		Stage: 0,
 		Path:  relPath,
@@ -98,8 +97,8 @@ func PopulateAllIndexField(fileInfo os.FileInfo, relPath string) IndexEntry {
 // GetHEADCommit reads the current HEAD commit hash from the .purr directory.
 // It handles both symbolic references (e.g., "ref: refs/heads/main") and detached HEAD states (direct commit hash).
 // Returns the commit hash as a string, or an error if reading fails.
-func GetHEADCommit() (string, error) {
-	headPath := filepath.Join(".purr", "HEAD")
+func GetHEADCommit(rootDir string) (string, error) {
+	headPath := filepath.Join(rootDir, ".purr", "HEAD")
 	content, err := os.ReadFile(headPath)
 	if err != nil {
 		return "", err
@@ -109,7 +108,7 @@ func GetHEADCommit() (string, error) {
 	// Case1: HEAD --> ref: refs/heads/main or similar
 	if strings.HasPrefix(ref, "ref:") {
 		branchRef := strings.TrimSpace(strings.TrimPrefix(ref, "ref:"))
-		branchPath := filepath.Join(".purr", branchRef)
+		branchPath := filepath.Join(rootDir, ".purr", branchRef)
 		hash, err := os.ReadFile(branchPath)
 		if err != nil {
 			return "", err
@@ -127,8 +126,8 @@ func GetHEADCommit() (string, error) {
 //
 // commitHash: The hash of the commit to update HEAD to.
 // error: An error if the operation fails, otherwise nil.
-func UpdateHEAD(commitHash string) error {
-	headPath := filepath.Join(".purr", "HEAD")
+func UpdateHEAD(rootDir string, commitHash string) error {
+	headPath := filepath.Join(rootDir, ".purr", "HEAD")
 	content, err := os.ReadFile(headPath)
 	if err != nil {
 		return err
@@ -139,7 +138,7 @@ func UpdateHEAD(commitHash string) error {
 	// Case1: If HEAD points to a branch, update the branch file
 	if strings.HasPrefix(ref, "ref:") {
 		branchRef := strings.TrimSpace(strings.TrimPrefix(ref, "ref:"))
-		branchPath := filepath.Join(".purr", branchRef)
+		branchPath := filepath.Join(rootDir, ".purr", branchRef)
 		return os.WriteFile(branchPath, []byte(commitHash+"\n"), 0644)
 	}
 

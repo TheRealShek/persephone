@@ -15,7 +15,7 @@ var lsFilesCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		debug, _ := cmd.Flags().GetBool("debug")
 
-		if err := purrCommands.ListFiles(debug); err != nil {
+		if err := purrCommands.ListFiles(".", debug); err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}

@@ -93,7 +93,7 @@ func addAllPurrFiles(path string) error {
 			}
 
 			// File is new or modified - write blob
-			hash, err := utils.WriteBlobWithSHA(tempPath)
+			hash, err := utils.WriteBlobWithSHA(path, tempPath)
 			if err != nil {
 				log.Printf("failed to write blob with SHA for %s: %v", tempPath, err)
 				return
@@ -257,7 +257,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 			}
 
 			// File is new or modified - write blob
-			hash, err := utils.WriteBlobWithSHA(absPath)
+			hash, err := utils.WriteBlobWithSHA(path, absPath)
 			if err != nil {
 				mu.Lock()
 				fmt.Printf("Error: failed to create blob for '%s': %v\n", fp, err)

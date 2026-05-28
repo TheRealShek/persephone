@@ -1,326 +1,251 @@
+# Purr Commands: Implementation Guide & Architectural Flows
 
-
-## `purr init` Command: Summary and Detailed Flow
-
-### Summary Flow
-
-1. **User runs:** `purr init`
-2. **CLI calls:** `InitPurrDirectories(".")`
-3. **InitPurrDirectories:**
-		- Creates `.purr` directory and subdirectories
-		- (Windows) Sets `.purr` as hidden
-		- Creates `.purr/index` with valid header if missing
-		- Creates `.purr/HEAD` pointing to `refs/heads/main` if missing
-4. **CLI prints:** Success or error message
+This document details the software design, sequence flows, and internal implementations of each custom **Purr** command.
 
 ---
 
-### Detailed Step-by-Step Flow
+## 1. `purr init`
 
-**1. User runs:** `purr init`
+Initializes a local repository with the necessary directory hierarchy and metadata configuration.
 
-	 - CLI entrypoint: `cmd/init.go`
-	 - Cobra command's `Run` function is executed
+### Sequence Flow
 
-**2. Calls:** `purrCommands.InitPurrDirectories(".")`  
-	 *(Defined in `internal/purrCommands/Init.go`)*
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as cmd/init.go (Cobra)
+    participant Core as internal/purrCommands/Init.go
+    participant OS as Filesystem
 
-	 **What `InitPurrDirectories` does:**
+    User->>CLI: Runs "purr init"
+    CLI->>Core: InitPurrDirectories(".")
+    
+    activate Core
+    Core->>OS: os.MkdirAll(".purr/{objects,refs/heads,logs}")
+    Note over Core,OS: If OS is Windows, sets .purr directory as hidden
+    
+    Core->>OS: Write valid 12-byte header to ".purr/index"
+    Note over Core,OS: Header: "DIRC" (4B) | Version 2 (4B) | Count 0 (4B)
+    
+    Core->>OS: Write "ref: refs/heads/main\n" to ".purr/HEAD"
+    
+    Core-->>CLI: Returns success status (nil)
+    deactivate Core
+    
+    CLI-->>User: Prints "Initialized empty repository"
+```
 
-	 - **Creates the `.purr` directory structure:**
-		 - `.purr/objects`
-		 - `.purr/refs/heads`
-		 - `.purr/logs`
-		 - Uses `os.MkdirAll` to ensure all directories exist
+### Detailed Steps
 
-	 - **On Windows:**
-		 - Sets `.purr` as hidden using Windows system calls (if not already hidden)
-
-	 - **Creates the index file:**
-		 - Checks if `.purr/index` exists
-		 - If not, writes a valid 12-byte header:
-			 - `"DIRC"` (magic, 4 bytes)
-			 - Version `2` (4 bytes, big-endian)
-			 - Entry count `0` (4 bytes, big-endian)
-		 - Uses `os.WriteFile` to write the header
-
-	 - **Creates the HEAD file:**
-		 - Checks if `.purr/HEAD` exists
-		 - If not, writes `ref: refs/heads/main\n` to it, pointing HEAD to the main branch
-
-	 - **Returns:**
-		 - If all steps succeed, returns `nil` (success)
-		 - If any step fails, returns an error
-
-**3. Back in the CLI (`cmd/init.go`):**
-
-	 - If `InitPurrDirectories` returns no error, prints: `Initialized empty repository`
-	 - If there is an error, prints the error message
-
----
-
-**This is the complete function call and logic flow for `purr init`.**
-
-
-## `purr ls-files` Command: Summary and Detailed Flow
-
-### Summary Flow
-
-1. **User runs:** `purr ls-files` (optionally with `--debug`)
-2. **CLI calls:** `purrCommands.ListFiles(showDebug)`
-3. **ListFiles:**
-		- Reads `.purr/index` using `utils.ReadIndex`
-		- If index is empty, prints a message and exits
-		- If not, prints a list of staged files:
-				- Simple mode: SHA-1, mode, and path for each file
-				- Debug mode: detailed metadata for each file
-4. **CLI prints:** Output to the user
+1. **Invocation**: The user executes `purr init`. The runtime invokes the entrypoint in `cmd/init.go`.
+2. **Directory Bootstrapping**: Core calls `InitPurrDirectories(".")` inside `internal/purrCommands/Init.go`. It builds:
+   - `.purr/objects` (object store)
+   - `.purr/refs/heads` (local refs)
+   - `.purr/logs` (lifecycle history logs)
+3. **OS-Specific Adjustments**: On Windows platforms, `.purr` is set to "hidden" using syscalls.
+4. **Staging Index Creation**: Writes a valid 12-byte binary index header if the file is missing:
+   - Magic signature: `"DIRC"` (4 bytes)
+   - Staging Version: `2` (4 bytes, big-endian)
+   - Initial count of entries: `0` (4 bytes, big-endian)
+5. **HEAD Initialization**: Writes `"ref: refs/heads/main\n"` to `.purr/HEAD`, binding active tracking to the `main` branch.
 
 ---
 
-### Detailed Step-by-Step Flow
+## 2. `purr ls-files`
 
-**1. User runs:** `purr ls-files [--debug]`
+Lists all files currently tracked in the staging index.
 
-	 - CLI entrypoint: `cmd/ls-files.go`
-	 - Cobra command's `Run` function is executed
-	 - `--debug` flag is parsed (default: false)
+### Sequence Flow
 
-**2. Calls:** `purrCommands.ListFiles(showDebug)`  
-	 *(Defined in `internal/purrCommands/LsFiles.go`)*
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as cmd/ls-files.go (Cobra)
+    participant Core as internal/purrCommands/LsFiles.go
+    participant Utils as internal/utils (Index Reader)
 
-	 **What `ListFiles` does:**
+    User->>CLI: Runs "purr ls-files [--debug]"
+    CLI->>Core: ListFiles(showDebug)
+    
+    activate Core
+    Core->>Utils: ReadIndex(".purr/index")
+    Utils-->>Core: Slice of Index entries
+    
+    alt Index is Empty
+        Core-->>CLI: Print "No files in index"
+    else Index Contains Entries
+        loop for each entry
+            alt showDebug == true
+                Core-->>CLI: Print detailed structural metadata
+            else showDebug == false
+                Core-->>CLI: Print simple "SHA-1  mode  path"
+            end
+        end
+    end
+    
+    Core-->>CLI: Returns nil (success)
+    deactivate Core
+    CLI-->>User: Displays list outputs
+```
 
-	 - **Reads the index:**
-		 - Constructs the path `.purr/index`
-		 - Calls `utils.ReadIndex(indexPath)` to get a slice of index entries
-		 - If reading fails, returns an error
+### Detailed Steps
 
-	 - **Handles empty index:**
-		 - If there are no entries, prints "No files in index" and returns
-
-	 - **Prints file information:**
-		 - If `showDebug` is true:
-				 - Prints detailed metadata for each file (path, SHA1, mode, size, mtime, ctime, dev, ino, uid, gid, stage)
-		 - If `showDebug` is false:
-				 - Prints a simple list: SHA1, mode, and path for each file
-
-	 - **Returns:**
-		 - Returns `nil` on success, or an error if something failed
-
-**3. Back in the CLI (`cmd/ls-files.go`):**
-
-	 - If `ListFiles` returns no error, nothing further is printed
-	 - If there is an error, prints the error message
-
----
-
-**This is the complete function call and logic flow for `purr ls-files`.**
-
-
-## `purr config` Command: Summary and Detailed Flow
-
-### Summary Flow
-
-1. **User runs:** `purr config <key> [value]`
-2. **CLI calls:** `purrCommands.ConfigCommand(args...)`
-3. **ConfigCommand:**
-		- If only `<key>` is provided, reads the config value and prints it
-		- If both `<key>` and `<value>` are provided, updates the config and saves it
-		- Uses helper functions to read/write config from the user's home directory
-4. **CLI prints:** Result or error message
+1. **Invocation**: The user executes `purr ls-files [--debug]`.
+2. **Loading Index**: The CLI calls `ListFiles(showDebug)` in `internal/purrCommands/LsFiles.go`. It reads the binary database under `.purr/index` using the `utils.ReadIndex` library helper.
+3. **Empty Bounds Handling**: If the index contains `0` records, the command exits with `"No files in index"`.
+4. **Output Rendering**:
+   - **Default Mode**: Displays the calculated object hash, file mode, and relative path.
+   - **Debug Mode**: Prints detailed binary index records, including timestamps (`mtime`, `ctime`), host attributes (`dev`, `ino`, `uid`, `gid`), file sizes, and stage parameters.
 
 ---
 
-### Detailed Step-by-Step Flow
+## 3. `purr config`
 
-**1. User runs:** `purr config <key> [value]`
+Manages configuration files on the local machine.
 
-	 - CLI entrypoint: `cmd/config.go`
-	 - Cobra command's `Run` function is executed
-	 - Arguments are passed as `args` to the handler
+### Sequence Flow
 
-**2. Calls:** `purrCommands.ConfigCommand(args...)`  
-	 *(Defined in `internal/purrCommands/Config.go`)*
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as cmd/config.go (Cobra)
+    participant Core as internal/purrCommands/Config.go
+    participant OS as ~/.purrconfig
 
-	 **What `ConfigCommand` does:**
+    alt Read Key
+        User->>CLI: Runs "purr config <key>"
+        CLI->>Core: ConfigCommand(key)
+        Core->>OS: Load config parameters
+        OS-->>Core: Values
+        Core-->>User: Prints value of key (e.g. user.name)
+    else Write Key-Value
+        User->>CLI: Runs "purr config <key> <value>"
+        CLI->>Core: ConfigCommand(key, value)
+        Core->>OS: Write updated key-value parameter
+        OS-->>Core: Success
+        Core-->>User: Prints confirmation message
+    end
+```
 
-	 - **Argument parsing:**
-		 - If no arguments, prints usage and returns an error
-		 - If one argument, enters read mode
-		 - If two or more arguments, enters write mode (joins all after the key as the value)
+### Detailed Steps
 
-	 - **Read mode:**
-		 - Calls `utils.ReadConfig()` to load the config from the user's home directory (`~/.purrconfig`)
-		 - Prints the value for the requested key (`user.name` or `user.email`)
-		 - If the key is unknown, prints an error
-
-	 - **Write mode:**
-		 - Calls `utils.ReadConfig()` to load the config (or creates a new one if missing)
-		 - Updates the value for the requested key
-		 - Calls `utils.WriteConfig()` to save the updated config back to `~/.purrconfig`
-		 - Prints confirmation of the change
-		 - If the key is unknown, prints an error
-
-	 - **Returns:**
-		 - Returns `nil` on success, or an error if something failed
-
-**3. Back in the CLI (`cmd/config.go`):**
-
-	 - If `ConfigCommand` returns no error, nothing further is printed
-	 - If there is an error, prints the error message
+1. **Invocation**: The user executes `purr config <key> [value]`.
+2. **CLI Routing**: Handles read or write modes depending on the argument length:
+   - **Read Mode** (1 argument): Invokes `utils.ReadConfig()` to load the global configuration file (`~/.purrconfig`) and outputs the value of the requested key (typically `user.name` or `user.email`).
+   - **Write Mode** (2+ arguments): Loads current configs (or builds a new configuration if missing), modifies the key, and writes the changes back to `~/.purrconfig`.
 
 ---
 
-**This is the complete function call and logic flow for `purr config`.**
+## 4. `purr add`
 
+Walks directories concurrently and stages new or modified files in the `.purr` index.
 
+### Sequence Flow
 
-## `purr add` Command: Summary and Detailed Flow
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as cmd/add.go (Cobra)
+    participant Core as internal/purrCommands/Add.go
+    participant WP as Worker Pool (Goroutines)
+    participant OS as Filesystem
 
-### Summary Flow
+    User->>CLI: Runs "purr add ." or "purr add <file>"
+    CLI->>Core: AddPurrFiles(args...)
+    
+    activate Core
+    Core->>OS: Check if ".purr" folder exists
+    
+    alt Add All ("add .")
+        Core->>OS: Walk directory tree recursively
+        OS-->>Core: Return file paths (skipping hidden objects)
+    else Add Specific Files
+        Core->>Core: Filter out invalid / out-of-bounds files
+    end
+    
+    loop For each eligible file (Concurrent Worker Pool)
+        Core->>WP: Spawn hash and compress task
+        WP->>OS: Compute file hash & write compressed zlib blob
+        WP-->>Core: Return generated blob SHA-1 and file size
+    end
+    
+    Core->>Core: Sort updated index entries alphabetically
+    Core->>OS: Write new serialized index to ".purr/index"
+    
+    Core-->>CLI: Return success status
+    deactivate Core
+    CLI-->>User: Displays staging results summary
+```
 
-1. **User runs:** `purr add .` or `purr add <file1> <file2> ...`
-2. **CLI calls:** `purrCommands.AddPurrFiles(args...)`
-3. **AddPurrFiles:**
-		- Checks if `.purr` directory exists (repo initialized)
-		- If `purr add .`, stages all non-hidden files recursively (concurrent, skips unchanged)
-		- If `purr add <files>`, stages only specified files (concurrent, skips unchanged/hidden)
-		- For each new/modified file: creates a blob object, updates the index
-		- Writes the updated index to disk
-4. **CLI prints:** Summary of added/skipped files or errors
+### Detailed Steps
 
----
-
-### Detailed Step-by-Step Flow
-
-**1. User runs:** `purr add .` or `purr add <file1> <file2> ...`
-
-	 - CLI entrypoint: `cmd/add.go`
-	 - Cobra command's `Run` function is executed
-	 - Arguments are passed as `args` to the handler
-
-**2. Calls:** `purrCommands.AddPurrFiles(args...)`  
-	 *(Defined in `internal/purrCommands/Add.go`)*
-
-	 **What `AddPurrFiles` does:**
-
-	 - **Checks repository initialization:**
-		 - Verifies `.purr` directory exists using `utils.ExistsAndIsDirectory`
-		 - If not, prints error and exits
-
-	 - **Handles arguments:**
-		 - If no files specified, prints "No Files added" and returns
-		 - If argument is `.`, calls `addAllPurrFiles` to stage all files
-		 - Otherwise, calls `addSpecificPurrFiles` to stage only listed files
-
-	 - **addAllPurrFiles:**
-		 - Loads current index entries from `.purr/index`
-		 - Recursively walks the working directory, skipping hidden files/dirs
-		 - For each file:
-				 - If new or modified, creates a blob (calls `utils.WriteBlobWithSHA`), updates index entry
-				 - Uses goroutines and a worker pool for concurrency
-		 - After all files processed, writes updated index (sorted) to disk
-
-	 - **addSpecificPurrFiles:**
-		 - Loads current index entries from `.purr/index`
-		 - For each specified file:
-				 - Skips hidden files/dirs, directories, or files outside repo
-				 - If new or modified, creates a blob, updates index entry
-				 - Uses goroutines and a worker pool for concurrency
-		 - After all files processed, writes updated index (sorted) to disk if any files were added
-
-	 - **Returns:**
-		 - Returns `nil` on success, or an error if something failed
-
-**3. Back in the CLI (`cmd/add.go`):**
-
-	 - If `AddPurrFiles` returns no error, prints "Files added to index"
-	 - If there is an error, prints the error message
+1. **Invocation**: The user runs `purr add .` or `purr add file1.txt`.
+2. **Directory Checks**: Core calls `AddPurrFiles(args...)` from `internal/purrCommands/Add.go`, validating that the directory has been initialized with a `.purr` storage root.
+3. **Workspace Traversal**:
+   - **Staging All**: Walks the current directory recursively using optimized walk steps that skip hidden folders and `.purr` contents.
+   - **Staging Specific Paths**: Collects the files listed in the arguments, filtering out missing objects, folders, and out-of-bounds files.
+4. **Concurrent Hashing (Worker Pool)**: For modified or new files, tasks are distributed to a concurrent worker pool:
+   - Calculates the `SHA-1` checksum of the file's raw content.
+   - Writes a zlib-compressed blob object to `.purr/objects/XX/YYYY...` only if the file content has changed.
+5. **Index Serialization**: Integrates new file entries, sorts the index collection alphabetically by path, and performs an atomic write to `.purr/index`.
 
 ---
 
-**This is the complete function call and logic flow for `purr add`.**
+## 5. `purr commit`
 
+Generates an immutable commit snapshot containing the staged workspace states.
 
-## `purr commit` Command: Summary and Detailed Flow
+### Sequence Flow
 
-### Summary Flow
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as cmd/commit.go (Cobra)
+    participant Core as internal/purrCommands/Commit.go
+    participant OS as Filesystem (.purr/)
 
-1. **User runs:** `purr commit -m "<message>"`
-2. **CLI calls:** `purrCommands.CommitPurrFiles(message)`
-3. **CommitPurrFiles:**
-	 - Checks if `.purr` directory exists (repo initialized)
-	 - Reads the index and HEAD commit
-	 - Builds a tree object from the index
-	 - Checks for duplicate commit (compares new tree hash with parent commit's tree hash)
-	 - If not duplicate:
-		 - Creates and writes the tree object
-		 - Builds and writes the commit object (with parent, author, message)
-		 - Updates HEAD to new commit
-	 - If duplicate:
-		 - Prints message and aborts commit
-4. **CLI prints:** Commit SHA or error/duplicate message
+    User->>CLI: Runs "purr commit -m <msg>"
+    CLI->>Core: CommitPurrFiles(message)
+    
+    activate Core
+    Core->>OS: Check if ".purr" is initialized
+    Core->>OS: Read current index entries & active HEAD pointer
+    
+    Core->>Core: Convert index records into Tree entries
+    Core->>Core: Serialize and compute Tree SHA-1
+    
+    opt Parent commit exists
+        Core->>OS: Read parent commit's Tree hash
+        alt Tree hashes match (No modifications)
+            Core-->>CLI: Print "No changes to commit" (Aborts execution)
+        end
+    end
+    
+    Core->>OS: Write zlib-compressed Tree object to "objects/"
+    
+    Core->>Core: Build Commit metadata (Tree hash, parent, author, message, timestamp)
+    Core->>Core: Compute Commit SHA-1
+    Core->>OS: Write zlib-compressed Commit object to "objects/"
+    
+    Core->>OS: Update refs/heads/<branch> or HEAD with new Commit SHA-1
+    
+    Core-->>CLI: Returns new Commit SHA-1
+    deactivate Core
+    CLI-->>User: Displays successful Commit SHA-1
+```
 
----
+### Detailed Steps
 
-### Detailed Step-by-Step Flow
-
-**1. User runs:** `purr commit -m "<message>"`
-
-	 - CLI entrypoint: `cmd/commit.go`
-	 - Cobra command's `Run` function is executed
-	 - Commit message is parsed from `-m` flag
-
-**2. Calls:** `purrCommands.CommitPurrFiles(message)`  
-	 *(Defined in `internal/purrCommands/Commit.go`)*
-
-	 **What `CommitPurrFiles` does:**
-
-	 - **Checks repository initialization:**
-		 - Verifies `.purr` directory exists using `utils.ExistsAndIsDirectory`
-		 - If not, prints error and exits
-
-	 - **Reads index and HEAD:**
-		 - Loads index entries from `.purr/index` (calls `utils.ReadIndex`)
-		 - Reads current HEAD reference from `.purr/HEAD` (calls `utils.ReadHEAD`)
-		 - If HEAD points to a branch, reads the latest commit SHA from the branch ref
-		 - If HEAD is detached, uses the SHA directly
-
-	 - **Builds tree object:**
-		 - Converts index entries to tree entries (calls `getTreeEntries`)
-		 - Serializes tree object (calls `BuildTreeObject`)
-		 - Computes tree SHA-1 (calls `ComputeTreeSHA1`)
-
-	 - **Checks for duplicate commit:**
-		 - If there is a parent commit:
-			 - Reads parent commit object (calls `GetCommitTreeHash`)
-			 - Compares new tree hash with parent commit's tree hash
-			 - If hashes match, prints "No changes to commit" and aborts
-
-	 - **Creates and writes tree object:**
-		 - Compresses tree object (zlib)
-		 - Writes to `.purr/objects/<treeSHA>`
-
-	 - **Builds and writes commit object:**
-		 - Constructs commit object (calls `BuildCommitObject`)
-		 - Computes commit SHA-1 (calls `ComputeCommitSHA1`)
-		 - Compresses and writes commit object to `.purr/objects/<commitSHA>`
-
-	 - **Updates HEAD:**
-		 - Updates branch ref in `.purr/refs/heads/<branch>` to new commit SHA
-		 - If HEAD is detached, updates `.purr/HEAD` directly
-
-	 - **Returns:**
-		 - On success, returns new commit SHA
-		 - On error, returns error message
-
-**3. Back in the CLI (`cmd/commit.go`):**
-
-	 - If `CommitPurrFiles` returns a commit SHA, prints: `Committed as <commitSHA>`
-	 - If duplicate, prints: `No changes to commit`
-	 - If there is an error, prints the error message
-
----
-
-**This is the complete function call and logic flow for `purr commit`.**
+1. **Invocation**: The user executes `purr commit -m "commit message"`.
+2. **Metadata Setup**: Extracts current stage data from `.purr/index` and fetches the parent commit reference by reading the local branch ref pointed to by `.purr/HEAD`.
+3. **Tree Object Assembly**:
+   - Groups index files into directory entries.
+   - Serializes folders into standard Tree format entries.
+   - Computes the Tree `SHA-1` hash.
+4. **Deduplication Validation**: Compares the new Tree hash with the parent commit's Tree hash. If they are identical, the commit is aborted since no changes have been staged.
+5. **Write Objects**:
+   - Writes the compressed Tree object into the database.
+   - Generates Commit metadata (Tree hash, Parent hash, Author name/email, message, and timestamp).
+   - Computes the Commit `SHA-1` hash.
+   - Writes the compressed Commit object into the database.
+6. **Updating Refs**: Updates the target branch pointer (e.g., `.purr/refs/heads/main`) to point to the new commit's `SHA-1` hash.

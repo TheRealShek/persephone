@@ -7,8 +7,8 @@ import (
 )
 
 // ListFiles reads the index and displays file information
-func ListFiles(showDebug bool) error {
-	indexPath := filepath.Join(".purr", "index")
+func ListFiles(rootDir string, showDebug bool) error {
+	indexPath := filepath.Join(rootDir, ".purr", "index")
 	entries, err := utils.ReadIndex(indexPath)
 	if err != nil {
 		return fmt.Errorf("failed to read index: %w", err)

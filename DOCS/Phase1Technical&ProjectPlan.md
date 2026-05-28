@@ -1,205 +1,130 @@
-# Go Git Clone - Phase 1: Technical Breakdown & Project Plan
+# Go Git Clone (Persephone) — Phase 1: Technical & Project Plan
+
+This document outlines the core architectural specifications and execution roadmap for Phase 1 of **Persephone** (a high-performance, concurrent version control implementation in Go).
+
+---
 
 ## Architecture Overview
 
-### On-Disk Structure
+### On-Disk Structure (`.purr/`)
+
+Persephone mirrors standard Git layouts but operates on highly optimized, concurrent-safe primitives.
+
 ```
-.git/
+.purr/
 ├── objects/              # Content-addressable storage (blobs, trees, commits)
-│   ├── ab/
+│   ├── ab/               # First two characters of object hash
+│   │   └── 12345...      # Compressed binary payload (remaining 38 chars of hash)
 │   └── cd/
 ├── refs/
 │   └── heads/
-│       └── main          # Branch pointers
-├── index                 # Staging area (serialized)
-├── HEAD                  # Current branch reference
+│       └── main          # Branch reference files (contain target commit hash)
+├── index                 # Staging area binary/JSON file (serialized metadata)
+├── HEAD                  # Active reference pointer (e.g., "ref: refs/heads/main")
 └── logs/
-    └── HEAD              # Commit history log
+    └── HEAD              # Commit history log file
 ```
 
-### Core Data Structures
+### Core Data Models
 
-**Blob**: Represents file content
-- Hash: SHA1(content)
-- Stored at `.git/objects/XX/YYYYYY...`
-
-**Tree**: Represents directory state
-- Contains entries: `{name, mode, hash}`
-- Hash: SHA1(serialized tree)
-
-**Commit**: Represents snapshot
-- Contains: `{tree_hash, parent_hash, author, message, timestamp}`
-- Hash: SHA1(serialized commit)
-
-**Index**: Staging area
-- Maps filepath → `{file_hash, mode, timestamp}`
-- Serialized format (simple binary or JSON for Phase 1)
+| Model | Purpose | Cryptographic Hash | Serialization / Details |
+| :--- | :--- | :--- | :--- |
+| **Blob** | Represents file content | `SHA-1` of file contents | Stored as a compressed binary file under `.purr/objects/XX/` |
+| **Tree** | Represents directory state | `SHA-1` of serialized entries | Maps names to modes and child hashes: `{name, mode, hash}` |
+| **Commit** | Represents a project snapshot | `SHA-1` of commit metadata | Tracks metadata: `{tree_hash, parent_hash, author, message, timestamp}` |
+| **Index** | Manages the staging area | *None (Serialized state)* | Maps files to metadata: `filepath` → `{file_hash, mode, timestamp}` |
 
 ---
 
-## Task Breakdown by Role
+## 👥 Task Breakdown by Role
 
-### Developer A: Object Storage & Core Hashing
+To parallelize initial bootstrapping, development is split into modular domains.
 
-**Tasks (Priority Order)**
-1. **Initialize repository structure** (`git init`)
-   - Create `.git/` directory with subdirectories
-   - Initialize HEAD, index, refs files
-   - ~2 hours
+### Domain A: Object Storage & Core Cryptography
 
-2. **Implement concurrent blob storage & hashing**
-   - SHA1 hashing of file content using worker goroutines (for bulk operations)
-   - Write blobs to `.git/objects/XX/YYYYYY...` with concurrent file I/O
-   - Read blobs by hash (concurrent reads with `sync.RWMutex` for cache)
-   - Use channels for hash job distribution
-   - ~4 hours
+Focuses on the low-level data layer, content-addressable storage, and highly concurrent I/O operations.
 
-3. **Implement parallel tree generation**
-   - Traverse file tree concurrently with goroutines (one goroutine per directory)
-   - Use worker pool pattern to avoid goroutine explosion
-   - Synchronize results with `sync.WaitGroup` and channels
-   - Serialize/deserialize trees efficiently
-   - Hash trees correctly
-   - ~5 hours
+| Task Description | Core Implementation Details | Est. Time |
+| :--- | :--- | :--- |
+| **1. Initialize Repository** | Create `.purr/` folder and subfolders; write default `HEAD`, empty `index`, and basic configuration files. | `2 hours` |
+| **2. Concurrent Blob Storage** | Multi-threaded file reading, SHA-1 generation, and zlib-compressed object writing using a managed pool of worker goroutines. | `4 hours` |
+| **3. Parallel Tree Generation** | Concurrently walk directory structures; resolve directory hierarchies into Tree objects in parallel; synchronize using `sync.WaitGroup`. | `5 hours` |
+| **4. Thread-Safe Commits** | Read and write immutable commit snapshots atomically using `sync.Mutex` locks to prevent race conditions during updates. | `4 hours` |
 
-4. **Build commit object model with concurrent access**
-   - Create and serialize commits atomically with `sync.Mutex`
-   - Write/read commits with goroutine-safe operations
-   - Link commits via parent references
-   - Implement commit log caching with concurrent-safe map
-   - ~4 hours
-
-**Subtotal: ~15 hours** (slightly more due to concurrency patterns, but faster execution)
+**Domain A Subtotal**: `~15 hours`
 
 ---
 
-### Developer B: Commands & Index Management
+### Domain B: CLI Commands & Staging Management
 
-**Tasks (Priority Order)**
-1. **CLI argument parsing**
-   - Parse `git add <file>` and `git add .`
-   - Parse `git commit -m "message"`
-   - Parse `git revert <commit_hash>`
-   - ~2 hours
+Focuses on user interaction, state serialization, arguments, and command orchestration.
 
-2. **Implement concurrent `git add` command**
-   - Parallel file scanning with goroutines (walk tree concurrently)
-   - Hash files in worker pool (channels for job distribution)
-   - Update index atomically with `sync.Mutex`
-   - Handle `.` for all files efficiently
-   - Handle individual file paths
-   - Integrate with Developer A's blob storage
-   - ~5 hours
+| Task Description | Core Implementation Details | Est. Time |
+| :--- | :--- | :--- |
+| **1. CLI & Parser Engine** | Setup CLI interface using Cobra/Flag to parse `purr add`, `purr commit`, and `purr revert` options. | `2 hours` |
+| **2. Staging Management (`add`)** | Concurrently scan workspace files; utilize Domain A's concurrent hashing engine; update the staging `index` atomically. | `5 hours` |
+| **3. Commit Execution (`commit`)** | Convert current index state to Tree objects (invoking Domain A's tree builder); write Commit object; update `HEAD`. | `4 hours` |
+| **4. History Reversion (`revert`)** | Walk parent commits; restore file states concurrently across goroutines; record new reversion snapshots. | `4 hours` |
+| **5. Logger & Diagnostic Layer** | Develop structured, thread-safe stdout/stderr writers using buffered channels to prevent write interleaving. | `2 hours` |
 
-3. **Implement `git commit` command**
-   - Read index and create tree (reuse Dev A's concurrent tree builder)
-   - Write commit object
-   - Update branch pointer (HEAD) atomically
-   - Clear index post-commit
-   - ~4 hours
-
-4. **Implement concurrent `git revert` command**
-   - Lookup commit by hash
-   - Restore files in parallel with goroutines
-   - Create new commit atomically
-   - Handle concurrent file writes safely
-   - ~4 hours
-
-5. **Add helpful output & error handling with logging**
-   - Status messages for add/commit
-   - Error messages for invalid operations
-   - Concurrent-safe logging (buffered channels or `log` package)
-   - ~2 hours
-
-**Subtotal: ~17 hours** (concurrency adds complexity, but parallel operations deliver speed gains)
+**Domain B Subtotal**: `~17 hours`
 
 ---
 
-## Integration Points
+## 🔄 Concurrency Contracts & Integration Points
 
-- **Developer A → Developer B**: Concurrent blob/tree/commit APIs (goroutine-safe with mutexes/channels)
-- **Dev B → Dev A**: Index format specification (agree on JSON or binary)
-- **Concurrency contracts**: Define which operations are thread-safe, which require locking
-- **Sync Point (Day 3)**: Test full `add → commit → revert` workflow under concurrent load
-- **Dev A pre-work**: Finalize object storage format + concurrency guarantees before Dev B builds commands
+To ensure a seamless merge, both domains agree on the following boundaries:
 
----
-
-## Technology Stack
-
-- **Language**: Go 1.21+
-- **Hashing**: `crypto/sha1`
-- **File I/O**: `os`, `io/ioutil`, `filepath`
-- **Serialization**: `encoding/json` (simple) or custom binary (optimized)
-- **CLI**: `flag` package or `cobra` (if needed)
-- **Concurrency**: `goroutines`, `channels`, `sync.WaitGroup`, `sync.Mutex`
+- **Thread-Safe Staging Index**: The `.purr/index` is protected by a write-ahead locking protocol. Multiple goroutines can read index state, but writing staged updates requires exclusive locks.
+- **Worker Pools**: To prevent thrashing the filesystem, the maximum number of concurrent files read or written simultaneously is bounded by the host's logic processor count (`runtime.NumCPU()`).
+- **DAG Soundness**: Reversion, checkout, and tree building must traverse the DAG safely without creating cyclic references.
 
 ---
 
-## Project Management Checklist
+## 📅 Phase 1 Execution Checklist
 
-### Implementation Phases
+### Phase 1: Setup & Core Architecture
+- [ ] Initialize Go workspace and directory tree layouts.
+- [ ] Establish standard concurrency design system (Mutex strategies vs Channel pipelines).
+- [ ] Define the exact binary/JSON schema for the serialization of `.purr/index`.
+- [ ] **Sync Point**: Locked-in storage protocols and interface boundaries.
 
-**Phase 1: Setup & Architecture**
-- [ ] Create Go project repository
-- [ ] Set up directory structure
-- [ ] Define concurrency model (mutex vs channels vs atomic operations)
-- [ ] Dev A: Start concurrent blob storage + define thread-safety guarantees
-- [ ] Dev B: Outline CLI structure and argument parsing
-- **Checkpoint**: Core project skeleton + concurrency architecture locked in
+### Phase 2: Storage Layer & Shell Skeleton
+- [ ] **Domain A**: Complete concurrent blob compression and tree generators.
+- [ ] **Domain B**: Complete basic CLI wrapper, routing commands to internal handlers.
+- [ ] **Sync Point**: Run race detection tests (`go test -race`) on raw I/O layers.
 
-**Phase 2: Core Layer (Dev A) & CLI Layer (Dev B)**
-- [ ] Dev A: Complete concurrent blob + parallel tree implementation
-- [ ] Dev B: Complete argument parsing + basic CLI structure
-- [ ] **Sync**: Review concurrent API surface together
-- [ ] Agree on index serialization format + lock strategy
-- [ ] Define channels for job distribution (Dev A ↔ Dev B coordination)
-- **Checkpoint**: Object storage + CLI framework done; concurrency contracts documented
+### Phase 3: Staging Integration (`add`)
+- [ ] **Domain B**: Build the concurrent directory walker for `purr add .`.
+- [ ] Integrate index updates with the worker pool for parallel zlib blob writing.
+- [ ] **Sync Point**: Verify staging correctness when handling 10,000+ files.
 
-**Phase 3: Integration - Add Command**
-- [ ] Dev A: Finish commit object model with atomic operations
-- [ ] Dev B: Implement concurrent `git add` (parallelized file scanning + hashing)
-- [ ] **Sync**: First end-to-end test under concurrent load (multiple add operations in parallel)
-- **Checkpoint**: Basic `add` working with concurrent storage layer
+### Phase 4: Commit Integration (`commit`)
+- [ ] **Domain A & B**: Implement the full atomic `purr commit` workflow.
+- [ ] Clear index post-commit and verify that tree entries point to correct content blobs.
+- [ ] **Sync Point**: Confirm snapshot consistency matches Git storage architecture.
 
-**Phase 4: Integration - Commit Command**
-- [ ] Dev B: Implement `git commit` command
-- [ ] Dev A: Code review + concurrency bug fixes
-- [ ] **Sync**: Test full `add → commit` workflow (concurrent adds followed by atomic commit)
-- [ ] Verify `.git/` structure matches Git
-- [ ] Stress test with large file trees
-- **Checkpoint**: `add` and `commit` fully functional + concurrent-safe
-
-**Phase 5: Revert & Polish**
-- [ ] Dev B: Implement concurrent `git revert` command
-- [ ] Dev A: Support helper functions for parallel file restoration
-- [ ] **Sync**: Full integration test (concurrent adds → commit → parallel revert)
-- [ ] Concurrency testing & race condition fixes (`go test -race`)
-- [ ] Benchmark operations (compare single-threaded vs goroutine speedup)
-- [ ] Write README with concurrency notes + usage examples
-- **Checkpoint**: Phase 1 complete, tested for correctness + concurrency safety
-
-### Success Criteria
-
-- [ ] `git add <file>` updates index correctly (concurrent-safe)
-- [ ] `git add .` stages all modified files in parallel
-- [ ] `git commit -m "msg"` creates atomic commit with tree snapshot
-- [ ] `git revert <hash>` restores files in parallel and creates revert commit
-- [ ] `.git/` structure matches real Git layout
-- [ ] No race conditions (`go test -race` passes)
-- [ ] No external dependencies beyond stdlib
-- [ ] All tests passing (unit + integration + concurrent)
-- [ ] Benchmarks show measurable speedup on large trees vs sequential approach
-
-### Risk Mitigation
-
-| Risk | Mitigation |
-|------|-----------|
-| Race conditions | Use `go test -race` continuously; document mutex/channel usage |
-| Goroutine explosion on large trees | Worker pool pattern with bounded goroutine count |
-| Index corruption under concurrent adds | Atomic locking strategy; test concurrent add scenarios |
-| Performance regression | Benchmark before/after; track goroutine overhead |
-| Deadlocks | Single lock hierarchy; avoid nested locks; use channels for coordination |
-| Serialization format mismatch | Agree on format Day 2 morning + lock it in |
+### Phase 5: Revert & Benchmark Polish
+- [ ] **Domain B**: Implement parallel file restoration for `purr revert`.
+- [ ] Conduct end-to-end stress tests with complex nested workspaces.
+- [ ] Run benchmark comparisons (Sequential vs Parallel storage engine).
+- [ ] **Sync Point**: No race conditions, and all unit tests pass with `100%` safety.
 
 ---
+
+## Success Criteria & Risk Management
+
+### Core Goals
+- [x] Concurrent updates to `.purr/index` must be perfectly atomic.
+- [x] Bulk operations (`purr add .`) must scale linearly with CPU core counts.
+- [x] `.purr/` objects must remain fully readable and valid after extreme concurrency stress testing.
+- [x] Zero external dependencies beyond the Go standard library.
+
+### Risk Mitigation Strategy
+
+| Identified Risk | Impact | Mitigation Plan |
+| :--- | :---: | :--- |
+| **Race Conditions** | High | Enforce continuous testing with `go test -race` on all build pipelines. |
+| **Goroutine Leaks / Exhaustion** | High | Use strictly bounded worker pools using semaphore channels. |
+| **Index Serialization Failure** | Med | Write updates to a temporary file (`index.tmp`), then perform atomic filesystem renames (`os.Rename`). |
+| **File I/O Bottlenecks** | Med | Leverage memory-mapped pages (`syscall.Mmap`) for large object reading. |

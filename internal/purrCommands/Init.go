@@ -1,12 +1,11 @@
 package purrCommands
 
 import (
+	"Persephone/internal/platform"
 	"bytes"
 	"encoding/binary"
 	"os"
 	"path/filepath"
-	"runtime"
-	"syscall"
 )
 
 func InitPurrDirectories(basePath string) error {
@@ -25,25 +24,9 @@ func InitPurrDirectories(basePath string) error {
 		}
 	}
 
-	// Set hidden attribute on Windows (only if not already hidden)
-	if runtime.GOOS == "windows" {
-		purrDirPtr, err := syscall.UTF16PtrFromString(purrDir)
-		if err != nil {
-			return err
-		}
-
-		attrs, err := syscall.GetFileAttributes(purrDirPtr)
-		if err != nil {
-			return err
-		}
-
-		// Only set if not already hidden
-		if attrs&syscall.FILE_ATTRIBUTE_HIDDEN == 0 {
-			err = syscall.SetFileAttributes(purrDirPtr, attrs|syscall.FILE_ATTRIBUTE_HIDDEN)
-			if err != nil {
-				return err
-			}
-		}
+	// Set hidden attribute on Windows (no-op on Unix)
+	if err := platform.SetHidden(purrDir); err != nil {
+		return err
 	}
 
 	// Create index file with valid header if it doesn't exist
