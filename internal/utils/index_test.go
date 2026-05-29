@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+// ---------- Original tests (preserved) ----------
+
 func TestReadWriteIndexRoundtrip(t *testing.T) {
 	tempDir := t.TempDir()
 	indexPath := filepath.Join(tempDir, "index")
@@ -15,7 +17,7 @@ func TestReadWriteIndexRoundtrip(t *testing.T) {
 	// Create test entries
 	time1 := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	time2 := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
-	
+
 	entries := []IndexEntry{
 		{
 			Ctime: time1,
@@ -140,5 +142,227 @@ func TestWriteIndex_PaddingAlignment(t *testing.T) {
 	// 12 byte header + 72 byte entry = 84 bytes total.
 	if len(data) != 84 {
 		t.Errorf("Padding calculation incorrect. Expected 84 bytes, got %d", len(data))
+	}
+}
+
+// ---------- New tests ----------
+
+func TestWriteReadIndex_EmptyEntries(t *testing.T) {
+	tempDir := t.TempDir()
+	indexPath := filepath.Join(tempDir, "index")
+
+	err := WriteIndex(indexPath, []IndexEntry{})
+	if err != nil {
+		t.Fatalf("WriteIndex with empty entries failed: %v", err)
+	}
+
+	// File should just be the 12-byte header
+	data, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatalf("Failed to read index file: %v", err)
+	}
+	if len(data) != 12 {
+		t.Errorf("Expected 12-byte header for empty index, got %d bytes", len(data))
+	}
+
+	// ReadIndex should return empty slice
+	readEntries, err := ReadIndex(indexPath)
+	if err != nil {
+		t.Fatalf("ReadIndex on empty index failed: %v", err)
+	}
+	if len(readEntries) != 0 {
+		t.Errorf("Expected 0 entries, got %d", len(readEntries))
+	}
+}
+
+func TestReadIndex_NonExistentFile(t *testing.T) {
+	_, err := ReadIndex("/nonexistent/path/index")
+	if err == nil {
+		t.Fatal("Expected error when reading non-existent index file")
+	}
+}
+
+func TestReadIndex_TruncatedHeader(t *testing.T) {
+	tempDir := t.TempDir()
+	indexPath := filepath.Join(tempDir, "index")
+
+	// Write only 8 bytes instead of 12
+	os.WriteFile(indexPath, []byte("DIRC\x00\x00"), 0644)
+
+	_, err := ReadIndex(indexPath)
+	if err == nil {
+		t.Fatal("Expected error when reading truncated index header")
+	}
+}
+
+func TestReadWriteIndex_AllFieldsPreserved(t *testing.T) {
+	tempDir := t.TempDir()
+	indexPath := filepath.Join(tempDir, "index")
+
+	ctime := time.Date(2025, 6, 15, 10, 30, 0, 0, time.UTC)
+	mtime := time.Date(2025, 6, 15, 11, 45, 0, 0, time.UTC)
+
+	original := IndexEntry{
+		Ctime: ctime,
+		Mtime: mtime,
+		Dev:   2049,
+		Ino:   131072,
+		Mode:  0100644,
+		Uid:   1000,
+		Gid:   1000,
+		Size:  42,
+		Sha1:  [20]byte{0xde, 0xad, 0xbe, 0xef, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10},
+		Stage: 0,
+		Path:  "src/main.go",
+	}
+
+	err := WriteIndex(indexPath, []IndexEntry{original})
+	if err != nil {
+		t.Fatalf("WriteIndex failed: %v", err)
+	}
+
+	readEntries, err := ReadIndex(indexPath)
+	if err != nil {
+		t.Fatalf("ReadIndex failed: %v", err)
+	}
+
+	if len(readEntries) != 1 {
+		t.Fatalf("Expected 1 entry, got %d", len(readEntries))
+	}
+
+	got := readEntries[0]
+
+	// Verify every field
+	if original.Ctime.Unix() != got.Ctime.Unix() {
+		t.Errorf("Ctime mismatch: want %d, got %d", original.Ctime.Unix(), got.Ctime.Unix())
+	}
+	if original.Mtime.Unix() != got.Mtime.Unix() {
+		t.Errorf("Mtime mismatch: want %d, got %d", original.Mtime.Unix(), got.Mtime.Unix())
+	}
+	if original.Dev != got.Dev {
+		t.Errorf("Dev mismatch: want %d, got %d", original.Dev, got.Dev)
+	}
+	if original.Ino != got.Ino {
+		t.Errorf("Ino mismatch: want %d, got %d", original.Ino, got.Ino)
+	}
+	if original.Mode != got.Mode {
+		t.Errorf("Mode mismatch: want %o, got %o", original.Mode, got.Mode)
+	}
+	if original.Uid != got.Uid {
+		t.Errorf("Uid mismatch: want %d, got %d", original.Uid, got.Uid)
+	}
+	if original.Gid != got.Gid {
+		t.Errorf("Gid mismatch: want %d, got %d", original.Gid, got.Gid)
+	}
+	if original.Size != got.Size {
+		t.Errorf("Size mismatch: want %d, got %d", original.Size, got.Size)
+	}
+	if original.Sha1 != got.Sha1 {
+		t.Errorf("Sha1 mismatch: want %x, got %x", original.Sha1, got.Sha1)
+	}
+	if original.Stage != got.Stage {
+		t.Errorf("Stage mismatch: want %d, got %d", original.Stage, got.Stage)
+	}
+	if original.Path != got.Path {
+		t.Errorf("Path mismatch: want %q, got %q", original.Path, got.Path)
+	}
+}
+
+func TestReadWriteIndex_MultipleEntries(t *testing.T) {
+	tempDir := t.TempDir()
+	indexPath := filepath.Join(tempDir, "index")
+
+	now := time.Now()
+	entries := []IndexEntry{
+		{Ctime: now, Mtime: now, Path: "a.txt", Sha1: [20]byte{1}},
+		{Ctime: now, Mtime: now, Path: "b/c.txt", Sha1: [20]byte{2}},
+		{Ctime: now, Mtime: now, Path: "d/e/f.txt", Sha1: [20]byte{3}},
+		{Ctime: now, Mtime: now, Path: "z.txt", Sha1: [20]byte{4}},
+	}
+
+	err := WriteIndex(indexPath, entries)
+	if err != nil {
+		t.Fatalf("WriteIndex failed: %v", err)
+	}
+
+	readEntries, err := ReadIndex(indexPath)
+	if err != nil {
+		t.Fatalf("ReadIndex failed: %v", err)
+	}
+
+	if len(readEntries) != 4 {
+		t.Fatalf("Expected 4 entries, got %d", len(readEntries))
+	}
+
+	// Verify paths are preserved in order
+	expectedPaths := []string{"a.txt", "b/c.txt", "d/e/f.txt", "z.txt"}
+	for i, expected := range expectedPaths {
+		if readEntries[i].Path != expected {
+			t.Errorf("Entry %d: expected path %q, got %q", i, expected, readEntries[i].Path)
+		}
+	}
+}
+
+func TestWriteIndex_PaddingVariousLengths(t *testing.T) {
+	// Test that padding works correctly for various path lengths
+	// Entry = 62 (metadata) + 2 (pathlen) + len(path) + padding
+	// Total entry must be aligned to 8 bytes
+	tests := []struct {
+		name        string
+		pathLen     int
+		expectedSz  int // total file size = 12 (header) + entry size
+	}{
+		{"path_len_1", 1, 12 + 72},   // 62+2+1=65, pad to 72
+		{"path_len_2", 2, 12 + 72},   // 62+2+2=66, pad to 72
+		{"path_len_6", 6, 12 + 72},   // 62+2+6=70, pad to 72
+		{"path_len_7", 7, 12 + 72},   // 62+2+7=71, pad to 72
+		{"path_len_8", 8, 12 + 72},   // 62+2+8=72, no padding
+		{"path_len_9", 9, 12 + 80},   // 62+2+9=73, pad to 80
+		{"path_len_16", 16, 12 + 80}, // 62+2+16=80, no padding
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			indexPath := filepath.Join(tempDir, "index")
+
+			path := strings.Repeat("x", tt.pathLen)
+			entries := []IndexEntry{{Path: path}}
+
+			WriteIndex(indexPath, entries)
+			data, _ := os.ReadFile(indexPath)
+
+			if len(data) != tt.expectedSz {
+				t.Errorf("Path len %d: expected file size %d, got %d", tt.pathLen, tt.expectedSz, len(data))
+			}
+		})
+	}
+}
+
+func TestReadWriteIndex_StageField(t *testing.T) {
+	tempDir := t.TempDir()
+	indexPath := filepath.Join(tempDir, "index")
+
+	now := time.Now()
+	entries := []IndexEntry{
+		{Ctime: now, Mtime: now, Path: "conflict.txt", Stage: 1},
+		{Ctime: now, Mtime: now, Path: "normal.txt", Stage: 0},
+	}
+
+	err := WriteIndex(indexPath, entries)
+	if err != nil {
+		t.Fatalf("WriteIndex failed: %v", err)
+	}
+
+	readEntries, err := ReadIndex(indexPath)
+	if err != nil {
+		t.Fatalf("ReadIndex failed: %v", err)
+	}
+
+	if readEntries[0].Stage != 1 {
+		t.Errorf("Expected stage 1, got %d", readEntries[0].Stage)
+	}
+	if readEntries[1].Stage != 0 {
+		t.Errorf("Expected stage 0, got %d", readEntries[1].Stage)
 	}
 }
