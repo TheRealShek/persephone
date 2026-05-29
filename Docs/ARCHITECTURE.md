@@ -246,19 +246,19 @@ sequenceDiagram
 
     User->>CLI: Runs "purr init"
     CLI->>Core: InitPurrDirectories(".")
-    
+
     activate Core
     Core->>OS: os.MkdirAll(".purr/{objects,refs/heads,logs}")
     Note over Core,OS: If OS is Windows, sets .purr directory as hidden
-    
+
     Core->>OS: Write valid 12-byte header to ".purr/index"
     Note over Core,OS: Header: "DIRC" (4B) | Version 2 (4B) | Count 0 (4B)
-    
+
     Core->>OS: Write "ref: refs/heads/main\n" to ".purr/HEAD"
-    
+
     Core-->>CLI: Returns success status (nil)
     deactivate Core
-    
+
     CLI-->>User: Prints "Initialized empty repository"
 ```
 
@@ -271,24 +271,24 @@ sequenceDiagram
    - Initial count of entries: `0` (4 bytes, big-endian)
 5. **HEAD Initialization**: Writes `"ref: refs/heads/main\n"` to `.purr/HEAD`, binding active tracking to the `main` branch.
 
-### 6.2 `purr ls-files`
+### 6.2 `purr ls`
 
 Lists all files currently tracked in the staging index.
 
 ```mermaid
 sequenceDiagram
     actor User
-    participant CLI as cmd/ls-files.go (Cobra)
+    participant CLI as cmd/ls.go (Cobra)
     participant Core as internal/purrCommands/LsFiles.go
     participant Utils as internal/utils (Index Reader)
 
-    User->>CLI: Runs "purr ls-files [--debug]"
+    User->>CLI: Runs "purr ls [--debug]"
     CLI->>Core: ListFiles(showDebug)
-    
+
     activate Core
     Core->>Utils: ReadIndex(".purr/index")
     Utils-->>Core: Slice of Index entries
-    
+
     alt Index is Empty
         Core-->>CLI: Print "No files in index"
     else Index Contains Entries
@@ -300,7 +300,7 @@ sequenceDiagram
             end
         end
     end
-    
+
     Core-->>CLI: Returns nil (success)
     deactivate Core
     CLI-->>User: Displays list outputs
@@ -357,26 +357,26 @@ sequenceDiagram
 
     User->>CLI: Runs "purr add ." or "purr add <file>"
     CLI->>Core: AddPurrFiles(args...)
-    
+
     activate Core
     Core->>OS: Check if ".purr" folder exists
-    
+
     alt Add All ("add .")
         Core->>OS: Walk directory tree recursively
         OS-->>Core: Return file paths (skipping hidden objects)
     else Add Specific Files
         Core->>Core: Filter out invalid / out-of-bounds files
     end
-    
+
     loop For each eligible file (Concurrent Worker Pool)
         Core->>WP: Spawn hash and compress task
         WP->>OS: Compute file hash & write compressed zlib blob
         WP-->>Core: Return generated blob SHA-1 and file size
     end
-    
+
     Core->>Core: Sort updated index entries alphabetically
     Core->>OS: Write new serialized index to ".purr/index"
-    
+
     Core-->>CLI: Return success status
     deactivate Core
     CLI-->>User: Displays staging results summary
@@ -404,29 +404,29 @@ sequenceDiagram
 
     User->>CLI: Runs "purr commit -m <msg>"
     CLI->>Core: CommitPurrFiles(message)
-    
+
     activate Core
     Core->>OS: Check if ".purr" is initialized
     Core->>OS: Read current index entries & active HEAD pointer
-    
+
     Core->>Core: Convert index records into Tree entries
     Core->>Core: Serialize and compute Tree SHA-1
-    
+
     opt Parent commit exists
         Core->>OS: Read parent commit's Tree hash
         alt Tree hashes match (No modifications)
             Core-->>CLI: Print "No changes to commit" (Aborts execution)
         end
     end
-    
+
     Core->>OS: Write zlib-compressed Tree object to "objects/"
-    
+
     Core->>Core: Build Commit metadata (Tree hash, parent, author, message, timestamp)
     Core->>Core: Compute Commit SHA-1
     Core->>OS: Write zlib-compressed Commit object to "objects/"
-    
+
     Core->>OS: Update refs/heads/<branch> or HEAD with new Commit SHA-1
-    
+
     Core-->>CLI: Returns new Commit SHA-1
     deactivate Core
     CLI-->>User: Displays successful Commit SHA-1

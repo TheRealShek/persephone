@@ -17,7 +17,7 @@ A Git-like version control system written in Go.
 3. `purr add <file1> <file2> ...`
    - Stage specific files by name
 
-4. `purr ls-files`
+4. `purr ls`
    - List all files currently staged in the index
    - Subcommands/Flags:
      - `--debug`, `-d` : Show detailed metadata for each file
@@ -93,15 +93,15 @@ Files added to index
 
 ---
 
-### 4. `purr ls-files`
+### 4. `purr ls`
 **Usage:**
 ```bash
 # Simple mode (default)
-purr ls-files
+purr ls
 
 # Detailed mode with full metadata
-purr ls-files --debug
-purr ls-files -d
+purr ls --debug
+purr ls -d
 ```
 **Description:**
 - Reads the `.purr/index` file
@@ -152,10 +152,10 @@ purr add .
 purr add README.md main.go
 
 # 4. View staged files
-purr ls-files
+purr ls
 
 # 5. View detailed file information
-purr ls-files --debug
+purr ls --debug
 ```
 
 ---

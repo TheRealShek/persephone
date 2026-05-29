@@ -21,7 +21,7 @@ func ListFiles(rootDir string, showDebug bool) error {
 	}
 
 	if showDebug {
-		// Detailed output similar to git ls-files --debug
+		// Detailed output similar to git ls --debug
 		fmt.Printf("%s\n\n", ui.SectionHeader(fmt.Sprintf("Found %d file(s) in index:", len(entries))))
 		for i, entry := range entries {
 			if i > 0 {

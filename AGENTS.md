@@ -65,7 +65,7 @@ No env vars required. No external services.
 |---|---|
 | `cmd/purr/main.go` | Binary entrypoint — just calls `cmd.Execute()` |
 | `cmd/root.go` | Cobra root command definition and flag setup |
-| `cmd/{init,add,commit,config,ls-files}.go` | Thin CLI wrappers — each delegates to `internal/purrCommands/` |
+| `cmd/{init,add,commit,config,ls}.go` | Thin CLI wrappers — each delegates to `internal/purrCommands/` |
 | `internal/purrCommands/` | Core command logic: `Init.go`, `Add.go`, `Commit.go`, `Config.go`, `LsFiles.go` |
 | `internal/utils/types.go` | All shared data types: `IndexEntry`, `PurrConfig`, `TreeEntries`, `CommitObj` |
 | `internal/utils/index.go` | Binary index read/write (`ReadIndex`, `WriteIndex`) |

@@ -7,7 +7,7 @@ The test suite is built strictly using Go's native testing framework (`testing`)
 ## Prerequisites
 
 - Go 1.25 or higher (required for `errors.Join` and other modern stdlib features)
-- A POSIX-compliant environment (Linux, macOS) or Windows. 
+- A POSIX-compliant environment (Linux, macOS) or Windows.
   *(Note: `hidden_windows.go` tests will only execute natively on a Windows OS or CI runner).*
 
 ---
@@ -124,7 +124,7 @@ echo "hello world" > hello.txt
 purr add .
 
 # 5. Verify staging index
-purr ls-files
+purr ls
 
 # 6. Commit snapshot
 purr commit -m "Manual verification snapshot"

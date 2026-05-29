@@ -19,7 +19,7 @@ Persephone = “what if we rebuilt Git 2025-first?”
 |---|---|
 | `purr init` | works |
 | `purr add` | works (concurrent hashing, skip unchanged) |
-| `purr ls-files` | works |
+| `purr ls` | works |
 | `purr config` | works |
 | `purr commit` | works (SHA-1, Git-like index) |
 
