@@ -11,14 +11,23 @@ import (
 	"time"
 )
 
+// CommitPurrFiles constructs a new commit snapshot from the currently staged files in the index.
+//
+// Staging Snapshot Lifecycle:
+//  1. Snapshot: We load the flat entries from the index and construct a Git-compatible tree object.
+//  2. Object Storage: The tree object is zlib-compressed and stored under `.purr/objects` using its SHA-1 hash.
+//  3. Change Detection: To prevent empty commits, we look up the parent commit from HEAD. We extract the parent's
+//     root tree hash and compare it with the current tree hash. If they are identical, no files have changed,
+//     and we abort with "nothing to commit, working tree clean".
+//  4. Link History: A commit object is built containing tree pointer, parent pointer, metadata (UserName, UserEmail,
+//     and the timestamp), and commit message. This object is zlib-compressed and stored.
+//  5. Move HEAD: We advance the branch ref symbolically linked by HEAD to point to the new commit hash, advancing the branch pointer.
 func CommitPurrFiles(path, message, authorName, authorEmail string) error {
-	// Get the tree hash (snapshot of current files)
-	entries, err := getTreeEntries(path) // Your function to get tree entries
+	entries, err := getTreeEntries(path)
 	if err != nil {
 		return fmt.Errorf("failed to get tree entries: %w", err)
 	}
 
-	// Build tree object for storage
 	treeContent, err := utils.BuildTreeObject(entries)
 	if err != nil {
 		return fmt.Errorf("failed to build tree object: %w", err)
@@ -39,23 +48,20 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 		return fmt.Errorf("failed to store tree object: %w", err)
 	}
 
-	// Get parent commit hash (empty string if first commit)
+	// Prevent empty commits: check if tree hash matches parent tree hash
 	parentHash, err := utils.GetHEADCommit(path)
 	if err == nil && parentHash != "" {
-		// Get parent commit's tree hash
 		parentTreeHash, err := utils.GetCommitTreeHash(path, parentHash)
 		if err == nil && parentTreeHash == treeHash {
 			return fmt.Errorf("nothing to commit, working tree clean")
 		}
 	}
 
-	// Create author/committer info
 	authorInfo := utils.PurrConfig{
 		UserName:  authorName,
 		UserEmail: authorEmail,
 	}
 
-	// Create the commit object
 	commit := &utils.CommitObj{
 		TreeHash:   treeHash,
 		ParentHash: parentHash,
@@ -65,77 +71,59 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 		Timestamp:  time.Now(),
 	}
 
-	// Compute commit hash
 	commitHash, err := utils.ComputeCommitSHA1(commit)
 	if err != nil {
 		return fmt.Errorf("failed to compute commit hash: %w", err)
 	}
 
-	// Build and store the commit object
 	commitObj, err := utils.BuildCommitObject(commit)
 	if err != nil {
 		return fmt.Errorf("failed to build commit object: %w", err)
 	}
 
-	// Compress with zlib
 	compressed.Reset()
 	w = zlib.NewWriter(&compressed)
 	w.Write(commitObj)
 	w.Close()
 
-	// Store the commit object in .purr/objects/{hash[:2]}/{hash[2:]}
 	err = utils.StoreObject(path, commitHash, compressed.Bytes())
 	if err != nil {
 		return fmt.Errorf("failed to store commit object: %w", err)
 	}
 
-	// Update HEAD to point to this new commit
 	err = utils.UpdateHEAD(path, commitHash)
 	if err != nil {
 		return fmt.Errorf("failed to update HEAD: %w", err)
 	}
 
+	// Display short 7-character commit hash prefix, matching standard VCS developer layouts
 	fmt.Printf("%s %s\n", ui.Metadata(fmt.Sprintf("[%s]", commitHash[:7])), message)
 	return nil
 }
 
-// getTreeEntries retrieves the staged file entries from the .purr repository at the given path.
-// It performs the following steps:
-// 1. Checks if the .purr directory exists at the specified path, returning an error if not.
-// 2. Reads the index file from the .purr directory using utils.ReadIndex.
-// 3. Returns an error if there are no staged files in the index.
-// 4. Converts each index entry to a TreeEntries struct, formatting the SHA-1 and mode appropriately.
-// Returns a slice of pointers to TreeEntries and an error if any step fails.
-
+// getTreeEntries resolves and parses index staged records for the commit builder.
+// It maps the flat list of files staged in `.purr/index` into a slice of `TreeEntries`.
 func getTreeEntries(path string) ([]*utils.TreeEntries, error) {
-	// Check if .purr directory exists
 	purrDir := filepath.Join(path, ".purr")
 	if _, err := os.Stat(purrDir); os.IsNotExist(err) {
 		return nil, fmt.Errorf("not a purr repository (or any of the parent directories): .purr")
 	}
 
-	// Read the index file
 	indexPath := filepath.Join(purrDir, "index")
 	index, err := utils.ReadIndex(indexPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read index: %w", err)
 	}
 
-	// Check if there are staged files
 	if len(index) == 0 {
 		return nil, fmt.Errorf("no changes staged for commit")
 	}
 
-	// Convert IndexEntry to TreeEntries
 	var entries []*utils.TreeEntries
 	for _, indexEntry := range index {
-		// Convert SHA-1 bytes to hex string
 		sha1Hex := fmt.Sprintf("%x", indexEntry.Sha1)
-
-		// Convert mode to Git format string
 		mode := getGitMode(indexEntry.Mode)
 
-		// Create tree entry
 		entry := &utils.TreeEntries{
 			Name:     indexEntry.Path,
 			Filename: filepath.Base(indexEntry.Path),
@@ -150,10 +138,11 @@ func getTreeEntries(path string) ([]*utils.TreeEntries, error) {
 	return entries, nil
 }
 
-// getGitMode returns the Git file mode string ("100755" for executable, "100644" for regular file) based on the file's mode.
+// getGitMode maps standard filesystem permission bits to standard Git string representations.
+// "100755" is used for executable files, and "100644" for regular files.
 func getGitMode(mode uint32) string {
 	if mode&0111 != 0 {
-		return "100755" // Executable
+		return "100755"
 	}
-	return "100644" // Regular file
+	return "100644"
 }

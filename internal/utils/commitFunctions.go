@@ -15,21 +15,20 @@ import (
 	"Persephone/internal/ui"
 )
 
-/*
-BuildTreeObject constructs a Git tree object from a slice of TreeEntries.
-It sorts the entries (directories before files, lexicographically), validates each entry,
-and encodes them in the Git tree object format:
-  - Each entry is "{mode} {name}\0{20-byte SHA-1}"
-
-Returns the raw bytes of the tree object, or an error if validation fails.
-*/
+// BuildTreeObject constructs a Git-compatible tree object from a slice of TreeEntries.
+// A Git tree object is a binary snapshot of a directory. Its formatting rules are rigid:
+//  - Entries must be sorted lexicographically by name.
+//  - In Git sorting conventions, a directory (tree) is compared as if it has a trailing slash "/"
+//    (e.g., "src/" sorts after "src.go"), ensuring parent-child folder structures are deterministic.
+//  - Format for each entry: "{mode} {name}\x00{20-byte SHA-1 raw bytes}"
+//  - The whole content is prepended with the header "tree {size}\x00".
 func BuildTreeObject(entries []*TreeEntries) ([]byte, error) {
-	// Check for empty entries list
 	if len(entries) == 0 {
 		return nil, fmt.Errorf("no entries to create tree for")
 	}
 
-	// Sort entries (directories as "name/", files as "name")
+	// Sort entries according to Git's tree-ordering rules:
+	// If it is a directory (sub-tree), we append a virtual "/" for comparison.
 	sort.Slice(entries, func(i, j int) bool {
 		nameI := entries[i].Name
 		nameJ := entries[j].Name
@@ -42,21 +41,21 @@ func BuildTreeObject(entries []*TreeEntries) ([]byte, error) {
 		return nameI < nameJ
 	})
 
-	// Build tree content
 	var treeContent []byte
 	for _, entry := range entries {
-		// Validation: mode and name must not be empty
 		if entry.Mode == "" || entry.Name == "" {
 			return nil, fmt.Errorf("invalid entry: mode and name required (got mode='%s', name='%s')", entry.Mode, entry.Name)
 		}
-		// Validation: mode must be a valid Git mode
+		// Validate that the file mode conforms to VCS formats
 		if entry.Mode != "100644" && entry.Mode != "100755" && entry.Mode != "040000" {
 			return nil, fmt.Errorf("invalid mode for entry %s: %s", entry.Name, entry.Mode)
 		}
-		// {mode} {name}\0
+		
+		// Serialize entry header: e.g. "100644 filename.go\x00"
 		line := fmt.Sprintf("%s %s\x00", entry.Mode, entry.Name)
 		treeContent = append(treeContent, []byte(line)...)
-		// 20 raw bytes of SHA-1 (decode hex)
+		
+		// Decode hex hash into its raw 20-byte SHA-1 binary format
 		shaBytes, err := hex.DecodeString(entry.Sha1Hex)
 		if err != nil || len(shaBytes) != 20 {
 			return nil, fmt.Errorf("invalid SHA-1 for entry %s", entry.Name)
@@ -64,15 +63,14 @@ func BuildTreeObject(entries []*TreeEntries) ([]byte, error) {
 		treeContent = append(treeContent, shaBytes...)
 	}
 
-	// Create tree object
+	// Assemble final tree object with metadata header
 	header := fmt.Sprintf("tree %d\x00", len(treeContent))
 	treeObj := append([]byte(header), treeContent...)
 
 	return treeObj, nil
 }
 
-// ComputeCommitSHA1 computes the SHA-1 of a Git-compatible commit object.
-// Similar to ComputeTreeSHA1, but for commit objects.
+// ComputeCommitSHA1 computes the SHA-1 hash of the serialized commit object.
 func ComputeCommitSHA1(commit *CommitObj) (string, error) {
 	commitObj, err := BuildCommitObject(commit)
 	if err != nil {
@@ -83,11 +81,15 @@ func ComputeCommitSHA1(commit *CommitObj) (string, error) {
 	return fmt.Sprintf("%x", sha[:]), nil
 }
 
-// BuildCommitObject creates a Git-compatible commit object from a CommitObj struct.
-// Format:
-// commit {size}\0tree {tree-hash}\nparent {parent-hash}\nauthor {name} <{email}> {timestamp} {timezone}\ncommitter {name} <{email}> {timestamp} {timezone}\n\n{message}\n
+// BuildCommitObject serializes a CommitObj into the standard Git-compatible commit object layout.
+// In Git, a commit object is a plain-text payload containing links to a tree snapshot, parent commit(s),
+// author/committer names and timestamps, followed by a double newline and the message:
+//
+//   commit {size}\x00tree {tree-hash}\n[parent {parent-hash}\n]author {name} <{email}> {unix-time} +0000\n...
+//
+// This allows tools to parse commits uniformly. Timezones are hardcoded to "+0000" (UTC)
+// to guarantee test execution determinism across different developer systems.
 func BuildCommitObject(commit *CommitObj) ([]byte, error) {
-	// Validation
 	if commit.TreeHash == "" {
 		return nil, fmt.Errorf("tree hash is required")
 	}
@@ -98,42 +100,38 @@ func BuildCommitObject(commit *CommitObj) ([]byte, error) {
 		return nil, fmt.Errorf("author name and email are required")
 	}
 
-	// Build commit content
 	var content strings.Builder
 
-	// Tree line
+	// Write tree pointer
 	content.WriteString(fmt.Sprintf("tree %s\n", commit.TreeHash))
 
-	// Parent line (if exists)
+	// Link history: Write parent reference (only omitted in the initial root commit)
 	if commit.ParentHash != "" {
 		content.WriteString(fmt.Sprintf("parent %s\n", commit.ParentHash))
 	}
 
-	// Timestamp
 	if commit.Timestamp.IsZero() {
 		return nil, fmt.Errorf("commit timestamp is required")
 	}
 	timestamp := commit.Timestamp.Unix()
-	timezone := "+0000" // UTC
+	timezone := "+0000" // Standardize on UTC for determinism across environments
 
-	// Author line
+	// Write metadata lines
 	content.WriteString(fmt.Sprintf("author %s <%s> %d %s\n",
 		commit.Author.UserName,
 		commit.Author.UserEmail,
 		timestamp,
 		timezone))
 
-	// Committer line
 	content.WriteString(fmt.Sprintf("committer %s <%s> %d %s\n",
 		commit.Committer.UserName,
 		commit.Committer.UserEmail,
 		timestamp,
 		timezone))
 
-	// Empty line before message
+	// Git commits use a single blank line to separate metadata headers from the message body
 	content.WriteString("\n")
 
-	// Commit message
 	content.WriteString(commit.Message)
 	if !strings.HasSuffix(commit.Message, "\n") {
 		content.WriteString("\n")
@@ -141,48 +139,53 @@ func BuildCommitObject(commit *CommitObj) ([]byte, error) {
 
 	commitContent := []byte(content.String())
 
-	// Create commit object with header
+	// Build the zlib payload with the binary size header
 	header := fmt.Sprintf("commit %d\x00", len(commitContent))
 	commitObj := append([]byte(header), commitContent...)
 
 	return commitObj, nil
 }
 
-// Helper: Get parent commit SHA-1 from current branch
+// GetParentCommit resolves the commit hash of the current branch pointed to by HEAD.
+// It follows HEAD:
+//  1. If HEAD points to a symbolic ref (e.g. "ref: refs/heads/main"), it reads that branch's ref file.
+//  2. If the branch file exists, its contents are returned as the parent commit hash.
+//  3. If HEAD holds a direct commit SHA-1 (detached state), it returns that SHA-1.
+//  4. If no commits exist yet, it returns an empty string, signifying the next commit is the repository root.
 func GetParentCommit(repoPath string) (string, error) {
-	// Read HEAD to find current branch
 	headPath := filepath.Join(repoPath, ".purr", "HEAD")
 	headContent, err := os.ReadFile(headPath)
 	if err != nil {
-		return "", nil // No HEAD yet (first commit)
+		return "", nil // HEAD doesn't exist yet (uninitialized repo state)
 	}
 
 	headStr := strings.TrimSpace(string(headContent))
 
-	// Parse "ref: refs/heads/main"
+	// Follow symbolic reference to find branch pointer
 	if strings.HasPrefix(headStr, "ref: ") {
 		refPath := strings.TrimPrefix(headStr, "ref: ")
 		branchPath := filepath.Join(repoPath, ".purr", refPath)
 
 		parentSHA, err := os.ReadFile(branchPath)
 		if err != nil {
-			return "", nil // Branch exists but no commits yet
+			return "", nil // Branch ref is not written yet (first commit on main)
 		}
 
 		return strings.TrimSpace(string(parentSHA)), nil
 	}
 
-	// Detached HEAD case
+	// Detached HEAD holds a direct SHA-1 hash
 	return headStr, nil
 }
 
-// Helper: Update branch reference with new commit
+// UpdateBranchRef updates the active branch's reference file with the newly created commit's SHA-1.
+// By writing the 40-character commit hash followed by a newline into `.purr/refs/heads/<branch>`,
+// we advance the branch tip to the new commit. Detached HEAD updates are currently not supported.
 func UpdateBranchRef(repoPath, commitSHA1 string) error {
-	// Read HEAD to find current branch
 	headPath := filepath.Join(repoPath, ".purr", "HEAD")
 	headContent, err := os.ReadFile(headPath)
 	if err != nil {
-		// No HEAD, create it pointing to main
+		// Bootstrap HEAD if missing
 		headContent = []byte("ref: refs/heads/main\n")
 		if err := os.WriteFile(headPath, headContent, 0644); err != nil {
 			return fmt.Errorf("failed to create HEAD: %w", err)
@@ -191,7 +194,6 @@ func UpdateBranchRef(repoPath, commitSHA1 string) error {
 
 	headStr := strings.TrimSpace(string(headContent))
 
-	// Parse "ref: refs/heads/main"
 	var branchPath string
 	if strings.HasPrefix(headStr, "ref: ") {
 		refPath := strings.TrimPrefix(headStr, "ref: ")
@@ -200,13 +202,12 @@ func UpdateBranchRef(repoPath, commitSHA1 string) error {
 		return fmt.Errorf("detached HEAD not supported yet")
 	}
 
-	// Create refs/heads directory if needed
+	// Ensure the base references directory exists before writing ref update
 	dir := filepath.Dir(branchPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create refs directory: %w", err)
 	}
 
-	// Write commit SHA-1 to branch file
 	if err := os.WriteFile(branchPath, []byte(commitSHA1+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to update branch ref: %w", err)
 	}
@@ -214,31 +215,32 @@ func UpdateBranchRef(repoPath, commitSHA1 string) error {
 	return nil
 }
 
-// CheckConfigFile verifies that the user's name and email are set in the configuration file.
-// It returns an error if either user.name or user.email is missing.
+// CheckConfigFile validates that author credentials are set in the global config.
+// Since commits require author metadata (UserName and UserEmail) to construct valid headers,
+// this validation prevents anonymous commits early and guides the user via a friendly hint.
 func CheckConfigFile() (string, string, error) {
-	// Read config to get user.name and user.email
 	config, err := ReadConfig()
 	if err != nil {
 		return "", "", fmt.Errorf("error reading config: %w", err)
 	}
 
-	// Check if user.name is set
 	if config.UserName == "" {
 		return "", "", ui.NewHintError(fmt.Errorf("user.name is not set.\nPlease configure it using: purr config user.name \"Your Name\""))
 	}
 
-	// Check if user.email is set
 	if config.UserEmail == "" {
 		return "", "", ui.NewHintError(fmt.Errorf("user.email is not set.\nPlease configure it using: purr config user.email \"your.email@example.com\""))
 	}
 	return config.UserName, config.UserEmail, nil
 }
 
-// GetCommitTreeHash reads a commit object by its hash and extracts the tree hash it references.
-// The commit object is expected to be stored in .purr/objects/{first2}/{rest} (zlib-compressed).
-// It decompresses the object, skips the header ("commit <size>\0"), and parses the first line
-// to find the "tree <hash>" entry. Returns the tree hash string, or an error if not found or invalid.
+// GetCommitTreeHash reads a commit object by its hash and retrieves the root tree SHA-1 it points to.
+// This is critical for status checks (detecting if any files are modified compared to the last commit).
+// It performs a standard VCS object lookup:
+//  1. Reads `.purr/objects/{hash[:2]}/{hash[2:]}`
+//  2. Decompresses it via zlib
+//  3. Parses the header `commit {size}\x00` and extracts the metadata payload
+//  4. Reads the first line which must contain `tree {treeHash}`
 func GetCommitTreeHash(rootDir string, commitHash string) (string, error) {
 	objPath := filepath.Join(rootDir, ".purr", "objects", commitHash[:2], commitHash[2:])
 	compressed, err := os.ReadFile(objPath)
@@ -257,13 +259,12 @@ func GetCommitTreeHash(rootDir string, commitHash string) (string, error) {
 		return "", err
 	}
 
-	// Skip header: "commit <size>\0"
+	// Git binary objects always terminate their type/size header with a null byte
 	nullIndex := bytes.IndexByte(content, 0)
 	if nullIndex == -1 {
 		return "", fmt.Errorf("invalid commit object: no null byte")
 	}
 
-	// Parse content after null byte
 	body := content[nullIndex+1:]
 	lines := strings.Split(string(body), "\n")
 

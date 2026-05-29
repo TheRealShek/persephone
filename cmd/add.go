@@ -2,23 +2,25 @@ package cmd
 
 import (
 	"Persephone/internal/purrCommands"
-	"Persephone/internal/ui"
-	"fmt"
 
 	"github.com/spf13/cobra"
 )
 
-// Define the add subcommand
+
+// addCmd represents the `purr add` command execution tree.
+//
+// Controller Separation of Concerns:
+// This command serves as a lightweight CLI front-end controller. It handles command routing,
+// consumes argument parameters, catches operational errors, and delegates all processing, hashing,
+// worker pooling, and index writes to `purrCommands.AddPurrFiles` within the decoupled commands engine.
 var addCmd = &cobra.Command{
 	Use:   "add [files]",
 	Short: "Add file contents to the index",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// This function runs when user types: purr add <files>
 		err := purrCommands.AddPurrFiles(args...)
 		if err != nil {
 			return err
 		}
-		fmt.Println(ui.Successf("Files added to index"))
 		return nil
 	},
 }
@@ -26,3 +28,5 @@ var addCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(addCmd)
 }
+
+

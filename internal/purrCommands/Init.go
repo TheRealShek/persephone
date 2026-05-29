@@ -8,6 +8,12 @@ import (
 	"path/filepath"
 )
 
+// InitPurrDirectories bootstraps a new Persephone repository.
+//
+// Directory Architecture:
+//  - `.purr/objects`: Stored content-addressed blobs, trees, and commit snapshots compressed with zlib.
+//  - `.purr/refs/heads`: Stored branch pointer files (each contains the 40-char SHA-1 of the tip commit).
+//  - `.purr/logs`: Stored operation logs for eventual reflog capabilities.
 func InitPurrDirectories(basePath string) error {
 	purrDir := filepath.Join(basePath, ".purr")
 
@@ -17,36 +23,37 @@ func InitPurrDirectories(basePath string) error {
 		filepath.Join(purrDir, "logs"),
 	}
 
-	// Create all directories
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
 
-	// Set hidden attribute on Windows (no-op on Unix)
+	// Register OS-specific attributes: hides the `.purr` directory on Windows (no-op on Unix/macOS)
 	if err := platform.SetHidden(purrDir); err != nil {
 		return err
 	}
 
-	// Create index file with valid header if it doesn't exist
+	// Bootstrap index file:
+	// A VCS requires a valid index to stage files. To prevent subsequent `ReadIndex` calls
+	// from failing or crashing on an empty or missing file, we seed it immediately with a
+	// valid 12-byte header: magic "DIRC", format version 2, and 0 initial staged entries.
 	indexPath := filepath.Join(purrDir, "index")
 	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
-		// Write valid 12-byte header: "DIRC" + version 2 + 0 entries
 		var buf bytes.Buffer
-		buf.WriteString("DIRC")                         // Magic (4 bytes)
-		binary.Write(&buf, binary.BigEndian, uint32(2)) // Version (4 bytes)
-		binary.Write(&buf, binary.BigEndian, uint32(0)) // Entry count (4 bytes)
+		buf.WriteString("DIRC")
+		binary.Write(&buf, binary.BigEndian, uint32(2))
+		binary.Write(&buf, binary.BigEndian, uint32(0))
 
 		if err := os.WriteFile(indexPath, buf.Bytes(), 0644); err != nil {
 			return err
 		}
 	}
 
-	// Create HEAD file if it doesn't exist
+	// Set default active branch:
+	// Point HEAD symbolically to the standard modern branch "refs/heads/main".
 	headPath := filepath.Join(purrDir, "HEAD")
 	if _, err := os.Stat(headPath); os.IsNotExist(err) {
-		// Point to refs/heads/main by default
 		headContent := "ref: refs/heads/main\n"
 		if err := os.WriteFile(headPath, []byte(headContent), 0644); err != nil {
 			return err
@@ -55,3 +62,4 @@ func InitPurrDirectories(basePath string) error {
 
 	return nil
 }
+

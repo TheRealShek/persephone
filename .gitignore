@@ -9,6 +9,8 @@
 *.so
 *.dylib
 .antigravitycli
+.gomodcache
+.home
 purr
 TUTOR.md
 

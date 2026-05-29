@@ -9,18 +9,24 @@ import (
 	"time"
 )
 
-/*
-ReadIndex reads and deserializes the .purr/index file.
-Git index format: 12-byte header + repeated entries.
-Each entry: fixed metadata (62 bytes) + variable-length path + padding.
-*/
+// ReadIndex deserializes the `.purr/index` file.
+// The index format is identical to Git's index version 2, designed for fast random access and portability:
+//  1. A 12-byte header:
+//     - 4 bytes signature: "DIRC" (Directory Cache)
+//     - 4 bytes version: big-endian uint32 (2)
+//     - 4 bytes entry count: big-endian uint32 (number of files staged)
+//  2. Staged entries laid out sequentially. Each entry contains:
+//     - 62 bytes of fixed-length metadata (stat cache fields)
+//     - 2 bytes path length: big-endian uint16
+//     - Variable-length path byte slice
+//     - 0 to 7 bytes of null-byte padding to align the start of the next entry to an 8-byte boundary.
 func ReadIndex(indexPath string) ([]IndexEntry, error) {
 	data, err := os.ReadFile(indexPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read index: %w", err)
 	}
 
-	buf := bytes.NewReader(data) // creates a readable buffer from a byte slice
+	buf := bytes.NewReader(data)
 	var entries []IndexEntry
 
 	// Read and validate 12-byte header
@@ -35,10 +41,13 @@ func ReadIndex(indexPath string) ([]IndexEntry, error) {
 	for buf.Len() > 0 {
 		var entry IndexEntry
 
-		// Reading fixed 62-byte metadata block from the memory buffer (buf) and storing its value into different variables
-		// Read IndexEntry struct to better understand it
-		// binary.BigEndian defines byte order: most significant byte comes first
-
+		// Read the 62-byte fixed-size metadata block.
+		// Layout details:
+		//  - Ctime/Mtime: 8 bytes each (Unix epoch seconds)
+		//  - Dev/Ino/Mode/Uid/Gid/Size: 4 bytes each
+		//  - Sha1: 20 bytes
+		//  - Stage flags: 2 bytes
+		// We use BigEndian serialization to guarantee platform-independent repository portability.
 		var ctime, mtime int64
 		if err := binary.Read(buf, binary.BigEndian, &ctime); err != nil {
 			return nil, fmt.Errorf("failed to read ctime: %w", err)
@@ -74,9 +83,7 @@ func ReadIndex(indexPath string) ([]IndexEntry, error) {
 			return nil, fmt.Errorf("failed to read stage: %w", err)
 		}
 
-		/*
-			The padding calculation and subsequent `buf.Seek` ensures that each IndexEntry starts at an 8-byte aligned offset in the index file, as required by the Purr index format.
-		*/
+		// Read variable length path
 		var pathLen uint16
 		if err := binary.Read(buf, binary.BigEndian, &pathLen); err != nil {
 			return nil, fmt.Errorf("failed to read path length: %w", err)
@@ -88,8 +95,11 @@ func ReadIndex(indexPath string) ([]IndexEntry, error) {
 		}
 		entry.Path = string(pathBytes)
 
-		// Skip padding to align next entry to 8 bytes
-		// Total entry size = 62 (metadata) + 2 (path length) + pathLen (path data)
+		// 8-byte alignment logic:
+		// Index formats require entries to be aligned to 8-byte boundary offsets relative
+		// to the file start. We compute the exact written bytes for the current entry
+		// (62 bytes fixed metadata + 2 bytes path size field + path data length) and
+		// skip the remaining padding bytes to align the read pointer for the next entry.
 		entrySize := 62 + 2 + pathLen
 		paddingLen := (8 - (entrySize % 8)) % 8
 		if _, err := buf.Seek(int64(paddingLen), io.SeekCurrent); err != nil {
@@ -101,8 +111,9 @@ func ReadIndex(indexPath string) ([]IndexEntry, error) {
 	return entries, nil
 }
 
-// WriteIndex serializes index entries and writes them to disk in Git index format.
-// Format: 12-byte header (DIRC + version 2 + entry count) + entries with 8-byte padding.
+// WriteIndex serializes the staged index entries back to `.purr/index`.
+// It maintains deterministic sorting and layout standards, ensuring that equivalent working states
+// generate byte-for-byte identical index files.
 func WriteIndex(indexPath string, entries []IndexEntry) error {
 	var buf bytes.Buffer
 
@@ -111,9 +122,9 @@ func WriteIndex(indexPath string, entries []IndexEntry) error {
 	binary.Write(&buf, binary.BigEndian, uint32(2))            // Version 2 (4 bytes)
 	binary.Write(&buf, binary.BigEndian, uint32(len(entries))) // Entry count (4 bytes)
 
-	// Write each entry
+	// Write each entry sequentially
 	for _, entry := range entries {
-		// Write fixed 62-byte metadata
+		// Write fixed 62-byte metadata block
 		binary.Write(&buf, binary.BigEndian, entry.Ctime.Unix()) // 8 bytes
 		binary.Write(&buf, binary.BigEndian, entry.Mtime.Unix()) // 8 bytes
 		binary.Write(&buf, binary.BigEndian, entry.Dev)          // 4 bytes
@@ -125,21 +136,22 @@ func WriteIndex(indexPath string, entries []IndexEntry) error {
 		binary.Write(&buf, binary.BigEndian, entry.Sha1)         // 20 bytes
 		binary.Write(&buf, binary.BigEndian, entry.Stage)        // 2 bytes
 
-		// Write path length and path data
+		// Write path length and data
 		pathBytes := []byte(entry.Path)
 		binary.Write(&buf, binary.BigEndian, uint16(len(pathBytes))) // 2 bytes
 		buf.Write(pathBytes)
 
-		// Add padding to align to 8-byte boundary
+		// Compute and write null-byte padding to satisfy the 8-byte alignment constraint
 		entrySize := 62 + 2 + len(pathBytes)
 		paddingLen := (8 - (entrySize % 8)) % 8
 		buf.Write(make([]byte, paddingLen))
 	}
 
-	// Write to disk
+	// Write to disk atomically (0644 standard file permissions)
 	if err := os.WriteFile(indexPath, buf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("failed to write index file: %w", err)
 	}
 
 	return nil
 }
+

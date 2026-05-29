@@ -6,7 +6,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Define the ls subcommand
+// lsFilesCmd represents the `purr ls` command execution tree.
+//
+// Operational Context:
+// Extracts visual parameters (such as the `--debug` flag) and triggers index rendering.
+// Keeping this wrapper simple isolates CLI parsing details from formatting logic.
 var lsFilesCmd = &cobra.Command{
 	Use:   "ls [flags]",
 	Short: "Show information about files in the index",
@@ -25,3 +29,4 @@ func init() {
 	rootCmd.AddCommand(lsFilesCmd)
 	lsFilesCmd.Flags().BoolP("debug", "d", false, "Show detailed metadata for each file")
 }
+

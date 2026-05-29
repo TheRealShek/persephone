@@ -13,8 +13,10 @@ import (
 	"sync"
 )
 
+// AddPurrFiles is the primary controller for staging files.
+// It verifies repository integrity (checking that `.purr` has been initialized) and
+// routes execution to bulk folder staging (`addAllPurrFiles`) or explicit item staging (`addSpecificPurrFiles`).
 func AddPurrFiles(arg ...string) error {
-	// Case: if `purr init` was not done before, gives an error
 	targetDir := filepath.Join(".", ".purr")
 	ok, err := utils.ExistsAndIsDirectory(targetDir)
 	if err != nil {
@@ -23,19 +25,17 @@ func AddPurrFiles(arg ...string) error {
 	if !ok {
 		return fmt.Errorf(".purr directory not initialized")
 	}
-	// Get Current Working Directory
+
 	dirPath, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("unable to get working directory: %w", err)
 	}
 
-	// Case: only `purr add` was written
 	if len(arg) == 0 {
 		fmt.Println(ui.Metadata("No files added"))
 		return nil
 	}
 
-	//Detect if the user passed . (all files) or specific files.
 	if len(arg) == 1 && arg[0] == "." {
 		return addAllPurrFiles(dirPath)
 	} else {
@@ -43,22 +43,32 @@ func AddPurrFiles(arg ...string) error {
 	}
 }
 
-// Called by func AddPurrFiles() when User passed `purr add .` (all files)
-// This function recursively stages all non-hidden files in the working directory for commit.
-// It uses goroutines for concurrent file processing, with a worker pool to limit concurrency
-// based on CPU cores. Only new or modified files (detected via modification time) are updated
-// in the index. Hidden files and directories (starting with '.') are automatically skipped.
+// addAllPurrFiles recursively crawls the repository root and stages all tracked files.
+//
+// Concurrency-First Design:
+//  1. Worker Pool Bound: We process each file in a separate goroutine. To prevent OS-level
+//     exhaustion of file descriptors or stack allocations in massive repositories, we bound active
+//     concurrency using a buffered semaphore channel (`semaphore`), capped at `runtime.NumCPU() * 5`.
+//  2. Why 5x CPU Cores: File hashing and zlib serialization are heavily disk I/O bound rather than
+//     purely CPU bound. Multiplexing multiple workers per logical core ensures that while some workers
+//     block on disk read/write, others compute SHA-1 hashes or process network system buffers, maximizing throughput.
+//  3. Thread-Safe Critical Sections: A single `sync.Mutex` protects access to the shared `indexMap` and
+//     the slice of `processingErrs`. We keep critical sections tightly focused: only locking during map lookups,
+//     map updates, and error logging, allowing file system reads and hash calculations to run in parallel.
+//  4. Performance Bypass (Stat Caching): Before reading or hashing a file, we check if it is already in the index.
+//     If the file's modification time matches the cached `Mtime` in the index, we skip the file entirely.
+//     This turns staging into a near-instant O(N) stat scan for unchanged working trees.
+//  5. Determinism: Because concurrent goroutines complete in a non-deterministic order, we convert the map
+//     to a slice and sort it lexicographically by path before writing to disk. This ensures index updates
+//     generate byte-for-byte identical binaries across executions.
 func addAllPurrFiles(path string) error {
-	// Load all index entries from .purr/index file to IndexEntries
 	IndexEntries, _ := utils.ReadIndex(filepath.Join(path, ".purr", "index"))
 
-	// Create a map for faster lookups (path -> entry)
 	indexMap := make(map[string]*utils.IndexEntry)
 	for i := range IndexEntries {
 		indexMap[IndexEntries[i].Path] = &IndexEntries[i]
 	}
 
-	// Use up to 5× CPU cores as worker limit
 	numWorkers := runtime.NumCPU() * 5
 	semaphore := make(chan struct{}, numWorkers)
 	var wg sync.WaitGroup
@@ -70,10 +80,9 @@ func addAllPurrFiles(path string) error {
 		wg.Add(1)
 		go func(tempPath string) {
 			defer wg.Done()
-			semaphore <- struct{}{}        // Acquire slot (blocks if at limit)
-			defer func() { <-semaphore }() // Release slot when done
+			semaphore <- struct{}{}        // Acquire token (blocks if active workers >= limit)
+			defer func() { <-semaphore }() // Release token back to the bucket
 
-			// Getting file Info
 			fileInfo, err := os.Stat(tempPath)
 			if err != nil {
 				mu.Lock()
@@ -82,7 +91,6 @@ func addAllPurrFiles(path string) error {
 				return
 			}
 
-			// Get relative path from repo root
 			relPath, err := filepath.Rel(path, tempPath)
 			if err != nil {
 				mu.Lock()
@@ -91,7 +99,7 @@ func addAllPurrFiles(path string) error {
 				return
 			}
 
-			// Check if file exists in index
+			// Stat cache comparison: skip hashing if Mtime is unchanged
 			mu.Lock()
 			existingEntry, exists := indexMap[relPath]
 			mu.Unlock()
@@ -104,7 +112,7 @@ func addAllPurrFiles(path string) error {
 				}
 			}
 
-			// File is new or modified - write blob
+			// Perform expensive I/O operations outside the lock context
 			hash, err := utils.WriteBlobWithSHA(path, tempPath)
 			if err != nil {
 				mu.Lock()
@@ -113,11 +121,10 @@ func addAllPurrFiles(path string) error {
 				return
 			}
 
-			// Create new entry with all fields populated
 			newEntry := utils.PopulateAllIndexField(fileInfo, relPath)
 			newEntry.Sha1 = hash
 
-			// Update map with lock
+			// Mutex protected updates on the shared map
 			mu.Lock()
 			indexMap[relPath] = &newEntry
 			addedCount++
@@ -127,26 +134,22 @@ func addAllPurrFiles(path string) error {
 		return nil
 	})
 
-	// Wait for all goroutines to finish
 	wg.Wait()
 
-	// Abort if any file failed
 	if len(processingErrs) > 0 {
 		return fmt.Errorf("purr add failed: %w", errors.Join(processingErrs...))
 	}
 
-	// Convert map to slice after all updates are complete
 	var updatedEntries []utils.IndexEntry
 	for _, entry := range indexMap {
 		updatedEntries = append(updatedEntries, *entry)
 	}
 
-	// Sort entries by path for deterministic output
+	// Lexicographical sorting is a VCS format invariant for fast lookup performance in standard Git
 	sort.Slice(updatedEntries, func(i, j int) bool {
 		return updatedEntries[i].Path < updatedEntries[j].Path
 	})
 
-	// Write updated index to disk
 	indexPath := filepath.Join(path, ".purr", "index")
 	if err := utils.WriteIndex(indexPath, updatedEntries); err != nil {
 		return fmt.Errorf("failed to write index: %w", err)
@@ -161,54 +164,46 @@ func addAllPurrFiles(path string) error {
 	return nil
 }
 
-// Called by func AddPurrFiles() when User passed `purr add file1 ...` (specific files)
-// This function stages specific files provided by the user for commit. It validates each file,
-// checks if they're within the repository bounds, skips hidden files, and only updates the index
-// for new or modified files. Uses goroutines for concurrent file processing with a worker pool
-// (5× CPU cores). All map accesses are protected by mutex locks to prevent race conditions.
-// The final index entries are sorted alphabetically by path for deterministic output.
+// addSpecificPurrFiles stages only the explicit paths supplied as CLI arguments.
+// It shares the concurrent hashing worker pool, stat-bypass, and serialization logic of bulk adding,
+// but layers path validation checks to ensure:
+//  1. Out-of-bounds protection: Blocks staging files residing outside the repository (containing "../").
+//  2. Directory filtering: Blocks staging folders directly (routing users to `purr add .` instead).
+//  3. Hidden file guards: Skip files starting with `.`, warning the developer to prevent accidental config commits.
 func addSpecificPurrFiles(path string, files []string) error {
-	// Check for empty file list
 	if len(files) == 0 {
 		fmt.Println("No files specified")
 		return nil
 	}
 
-	// Load all index entries from .purr/index file
 	IndexEntries, err := utils.ReadIndex(filepath.Join(path, ".purr", "index"))
 	if err != nil {
 		return fmt.Errorf("failed to read index: %w", err)
 	}
 
-	// Create a map for faster lookups (path -> entry)
 	indexMap := make(map[string]*utils.IndexEntry)
 	for i := range IndexEntries {
 		indexMap[IndexEntries[i].Path] = &IndexEntries[i]
 	}
 
-	// Counters for tracking results
 	var addedCount, skippedCount int
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	var processingErrs []error
 
-	// Use up to 5× CPU cores as worker limit
 	numWorkers := runtime.NumCPU() * 5
 	semaphore := make(chan struct{}, numWorkers)
 
-	// Process each specified file concurrently
 	for _, filePath := range files {
 		wg.Add(1)
 		go func(fp string) {
 			defer wg.Done()
-			semaphore <- struct{}{}        // Acquire slot (blocks if at limit)
-			defer func() { <-semaphore }() // Release slot when done
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
 
-			// Clean and normalize the path
 			cleanPath := filepath.Clean(fp)
 
-			// Skip hidden files/directories (starting with .)
-			// Check both the input path and each component of the path
+			// Robust check for hidden paths (e.g. "path/to/.hidden_file" or ".env")
 			pathParts := strings.Split(cleanPath, string(filepath.Separator))
 			isHidden := false
 			for _, part := range pathParts {
@@ -225,13 +220,11 @@ func addSpecificPurrFiles(path string, files []string) error {
 				return
 			}
 
-			// Convert to absolute path if relative
 			absPath := cleanPath
 			if !filepath.IsAbs(cleanPath) {
 				absPath = filepath.Join(path, cleanPath)
 			}
 
-			// Check if file exists
 			fileInfo, err := os.Stat(absPath)
 			if err != nil {
 				mu.Lock()
@@ -240,7 +233,6 @@ func addSpecificPurrFiles(path string, files []string) error {
 				return
 			}
 
-			// Skip directories
 			if fileInfo.IsDir() {
 				mu.Lock()
 				processingErrs = append(processingErrs, fmt.Errorf("'%s' is a directory (use 'purr add .' to add all files)", fp))
@@ -248,7 +240,6 @@ func addSpecificPurrFiles(path string, files []string) error {
 				return
 			}
 
-			// Get relative path from repo root
 			relPath, err := filepath.Rel(path, absPath)
 			if err != nil {
 				mu.Lock()
@@ -257,7 +248,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 				return
 			}
 
-			// Validate file is within repository (not outside with ../)
+			// Security check: block path traversal attempts to stage files outside the repo root
 			if strings.HasPrefix(relPath, "..") {
 				mu.Lock()
 				processingErrs = append(processingErrs, fmt.Errorf("'%s' is outside repository", fp))
@@ -265,12 +256,10 @@ func addSpecificPurrFiles(path string, files []string) error {
 				return
 			}
 
-			// Check if file exists in index (with lock protection)
 			mu.Lock()
 			existingEntry, exists := indexMap[relPath]
 			shouldSkip := false
 			if exists {
-				// Skip if file hasn't been modified
 				if fileInfo.ModTime().Equal(existingEntry.Mtime) {
 					fmt.Printf("%s %s\n", ui.Modified("Unchanged:"), ui.StyledPath(relPath))
 					skippedCount++
@@ -283,7 +272,6 @@ func addSpecificPurrFiles(path string, files []string) error {
 				return
 			}
 
-			// File is new or modified - write blob
 			hash, err := utils.WriteBlobWithSHA(path, absPath)
 			if err != nil {
 				mu.Lock()
@@ -292,11 +280,9 @@ func addSpecificPurrFiles(path string, files []string) error {
 				return
 			}
 
-			// Create new entry with all fields populated
 			newEntry := utils.PopulateAllIndexField(fileInfo, relPath)
 			newEntry.Sha1 = hash
 
-			// Update map with lock
 			mu.Lock()
 			indexMap[relPath] = &newEntry
 			fmt.Printf("%s %s\n", ui.Added("Added:"), ui.StyledPath(relPath))
@@ -306,28 +292,22 @@ func addSpecificPurrFiles(path string, files []string) error {
 		}(filePath)
 	}
 
-	// Wait for all goroutines to finish
 	wg.Wait()
 
-	// Abort if any file failed
 	if len(processingErrs) > 0 {
 		return fmt.Errorf("purr add failed: %w", errors.Join(processingErrs...))
 	}
 
-	// Only write index if something was added or modified
 	if addedCount > 0 {
-		// Convert map to slice after all updates are complete
 		var updatedEntries []utils.IndexEntry
 		for _, entry := range indexMap {
 			updatedEntries = append(updatedEntries, *entry)
 		}
 
-		// Sort entries by path for deterministic output
 		sort.Slice(updatedEntries, func(i, j int) bool {
 			return updatedEntries[i].Path < updatedEntries[j].Path
 		})
 
-		// Write updated index to disk
 		indexPath := filepath.Join(path, ".purr", "index")
 		if err := utils.WriteIndex(indexPath, updatedEntries); err != nil {
 			return fmt.Errorf("failed to write index: %w", err)

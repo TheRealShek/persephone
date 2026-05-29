@@ -7,7 +7,14 @@ import (
 	"path/filepath"
 )
 
-// ListFiles reads the index and displays file information
+// ListFiles reads `.purr/index` and formats the staged files list.
+//
+// Dual Presentation Models:
+//  - Standard Mode (Default): Focuses on clean file lists, showing paths, short 7-char SHA-1 prefixes,
+//    and standard octal file permissions. This is optimized for rapid developer scanning.
+//  - Debug Mode (`showDebug = true`): Dumps the low-level stat cache metadata of each staged index record
+//    (inodes, device IDs, timestamps, conflict stages, etc.). This acts as a vital tool for VCS maintainers
+//    verifying binary structure alignment, filesystem change-detection, and stat caching correctness.
 func ListFiles(rootDir string, showDebug bool) error {
 	indexPath := filepath.Join(rootDir, ".purr", "index")
 	entries, err := utils.ReadIndex(indexPath)
@@ -21,7 +28,6 @@ func ListFiles(rootDir string, showDebug bool) error {
 	}
 
 	if showDebug {
-		// Detailed output similar to git ls --debug
 		fmt.Printf("%s\n\n", ui.SectionHeader(fmt.Sprintf("%d file(s) staged:", len(entries))))
 		for i, entry := range entries {
 			if i > 0 {
@@ -40,7 +46,6 @@ func ListFiles(rootDir string, showDebug bool) error {
 			fmt.Printf("%s %s\n", ui.Metadata("Stage:"), ui.Metadata(fmt.Sprintf("%d", entry.Stage)))
 		}
 	} else {
-		// Simple output (default)
 		fmt.Printf("%s\n\n", ui.SectionHeader(fmt.Sprintf("%d file(s) staged:", len(entries))))
 		for _, entry := range entries {
 			shortSha := fmt.Sprintf("%x", entry.Sha1)[:7]
@@ -50,3 +55,4 @@ func ListFiles(rootDir string, showDebug bool) error {
 
 	return nil
 }
+

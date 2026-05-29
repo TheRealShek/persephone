@@ -7,31 +7,31 @@ import (
 	"strings"
 )
 
-// ConfigCommand handles the `purr config` command
-// Usage:
-//   - purr config user.name                  -> read user name
-//   - purr config user.email                 -> read user email
-//   - purr config user.name "John Doe"       -> set user name
-//   - purr config user.email "john@example.com" -> set user email
+// ConfigCommand provides the entry point for the `purr config` CLI action.
+//
+// Operational Mechanics:
+//  - Read Mode (1 argument): Displays the current value for the requested key (e.g. `purr config user.name`).
+//  - Write Mode (>= 2 arguments): Updates the key's value and persists the change to the global `.purrconfig` file.
+//    If the user inputs multiple unquoted values (e.g. `purr config user.name John Doe`), we reconstruct the name
+//    by joining the remaining CLI arguments with spaces for convenience.
 func ConfigCommand(args ...string) error {
-	// Check if we have at least one argument (the config key)
 	if len(args) == 0 {
 		return fmt.Errorf("usage: purr config <key> [<value>]\n  Example: purr config user.name \"John Doe\"")
 	}
 
 	configKey := args[0]
 
-	// Read mode: no value provided
 	if len(args) == 1 {
 		return readConfig(configKey)
 	}
 
-	// Write mode: value provided
+	// Reconstruct potentially multi-word values (e.g. unquoted user names)
 	configValue := strings.Join(args[1:], " ")
 	return writeConfig(configKey, configValue)
 }
 
-// readConfig reads and displays a specific config value
+// readConfig displays the current value of the given key from the global config file.
+// It fails if the key is unrecognized, maintaining configuration schema safety.
 func readConfig(key string) error {
 	config, err := utils.ReadConfig()
 	if err != nil {
@@ -58,16 +58,13 @@ func readConfig(key string) error {
 	return nil
 }
 
-// writeConfig updates a specific config value and saves to disk
+// writeConfig updates the specified key with the new value, creating a new global config file if missing.
 func writeConfig(key, value string) error {
-	// Read existing config (or get empty config if file doesn't exist)
 	config, err := utils.ReadConfig()
 	if err != nil {
-		// If config doesn't exist, start with empty config
 		config = &utils.PurrConfig{}
 	}
 
-	// Update the appropriate field
 	switch key {
 	case "user.name":
 		config.UserName = value
@@ -79,10 +76,10 @@ func writeConfig(key, value string) error {
 		return fmt.Errorf("unknown config key: %s\nValid keys: user.name, user.email", key)
 	}
 
-	// Write updated config to disk
 	if err := utils.WriteConfig(config); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
 	return nil
 }
+

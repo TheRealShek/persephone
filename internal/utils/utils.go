@@ -10,37 +10,38 @@ import (
 	"strings"
 )
 
-// ExistsAndIsDirectory checks if the given path exists and is present in the directory.
+// ExistsAndIsDirectory checks if the given path exists and represents a directory.
 func ExistsAndIsDirectory(path string) (bool, error) {
 	info, err := os.Stat(path)
 
-	// Case 1: Path does not exist.
 	if os.IsNotExist(err) {
 		return false, err
 	}
 
-	// Case 2: Error Handling
 	if err != nil {
 		return false, fmt.Errorf("stat check failed for %s: %w", path, err)
 	}
 
-	// Case 3: Path Exists
 	return info.IsDir(), nil
 }
 
-/*
-WalkDir(root, fn) walks through all files and directories under root.
-It calls fn(path, d, err) for each entry, including root itself.
-The callback can handle each item or skip directories (e.g. return filepath.SkipDir).
-Returns an error if the walk fails.
-*/
+// WalkAndAddFiles recursively crawls a directory path and executes the handleFile function on each discovered file.
+//
+// Key VCS Walking Decisions:
+//  1. Hidden File Filter: Any file or directory starting with "." is immediately skipped.
+//     This is a vital safeguard: it prevents tracking the internal `.purr` repository metadata,
+//     developer sandboxes, IDE configuration folders (e.g. `.idea`, `.vscode`), or other Git repositories.
+//  2. Directory Skipping: We skip directories after traversing their descendants. Staged records
+//     only track actual file contents (blobs); folders are represented implicitly through file paths.
+//  3. Fault Tolerance: If `handleFile` fails for a file, the walk logs the error but continues.
+//     This ensures that a single locked or unreadable file does not abort a larger concurrent staging operation,
+//     improving CLI robustness for bulk file additions.
 func WalkAndAddFiles(root string, handleFile func(string) error) error {
 	return filepath.WalkDir(root, func(entryPath string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("error accessing %s: %w", entryPath, err)
 		}
 
-		// Skip anything starting with `.`
 		if strings.HasPrefix(d.Name(), ".") {
 			if d.IsDir() {
 				return filepath.SkipDir
@@ -48,12 +49,10 @@ func WalkAndAddFiles(root string, handleFile func(string) error) error {
 			return nil
 		}
 
-		// Skip remaining directories
 		if d.IsDir() {
 			return nil
 		}
 
-		// Handle file, but continue on error
 		if err := handleFile(entryPath); err != nil {
 			log.Printf("error handling file %s: %v", entryPath, err)
 			return nil
@@ -62,7 +61,9 @@ func WalkAndAddFiles(root string, handleFile func(string) error) error {
 	})
 }
 
-// StoreObject handles creating directories and writing compressed blob
+// StoreObject writes compressed object payloads under `.purr/objects/xx/yyyy...`.
+// It guarantees that the 2-character hex prefix directory is created before writing the file
+// to support object fan-out conventions.
 func StoreObject(rootDir string, hashStr string, data []byte) error {
 	dir := filepath.Join(rootDir, ".purr", "objects", hashStr[:2])
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -73,11 +74,9 @@ func StoreObject(rootDir string, hashStr string, data []byte) error {
 	return os.WriteFile(objectPath, data, 0644)
 }
 
-/*
-*
-PopulateAllIndexField creates an IndexEntry from the provided os.FileInfo and relative path.
-It extracts file metadata using platform-specific stat extraction, and populates all index fields.
-*/
+// PopulateAllIndexField constructs an IndexEntry from filesystem stat data.
+// It leverages platform-specific metadata extractions (to support Unix, Darwin, and Windows inodes/device IDs)
+// and maps standard properties into the index entry.
 func PopulateAllIndexField(fileInfo os.FileInfo, relPath string) IndexEntry {
 	stat := platform.ExtractStat(fileInfo)
 	return IndexEntry{
@@ -94,18 +93,19 @@ func PopulateAllIndexField(fileInfo os.FileInfo, relPath string) IndexEntry {
 	}
 }
 
-// GetHEADCommit reads the current HEAD commit hash from the .purr directory.
-// It handles both symbolic references (e.g., "ref: refs/heads/main") and detached HEAD states (direct commit hash).
-// Returns the commit hash as a string, or an error if reading fails.
+// GetHEADCommit resolves the current HEAD commit hash from `.purr/HEAD`.
+// It supports two reference states:
+//  1. Symbolic Reference (e.g. `ref: refs/heads/main`): Follows the path to read the active branch's commit hash.
+//  2. Detached HEAD State: Reads the raw commit hash directly if HEAD points directly to a commit instead of a branch.
+// Returns the resolved 40-character commit hash string.
 func GetHEADCommit(rootDir string) (string, error) {
 	headPath := filepath.Join(rootDir, ".purr", "HEAD")
 	content, err := os.ReadFile(headPath)
 	if err != nil {
 		return "", err
 	}
-	ref := strings.TrimSpace(string(content)) //to clean \n ( Empty spaces)
+	ref := strings.TrimSpace(string(content))
 
-	// Case1: HEAD --> ref: refs/heads/main or similar
 	if strings.HasPrefix(ref, "ref:") {
 		branchRef := strings.TrimSpace(strings.TrimPrefix(ref, "ref:"))
 		branchPath := filepath.Join(rootDir, ".purr", branchRef)
@@ -115,17 +115,16 @@ func GetHEADCommit(rootDir string) (string, error) {
 		}
 		return strings.TrimSpace(string(hash)), nil
 	}
-	// Case2: Detached HEAD (direct hash)
+	
 	return ref, nil
 }
 
-// UpdateHEAD updates the current HEAD reference to point to the specified commit hash.
-// If HEAD points to a branch (i.e., is a symbolic reference), it updates the branch file
-// with the new commit hash. If HEAD is in a detached state, it updates the HEAD file directly.
-// Returns an error if reading or writing the reference files fails.
+// UpdateHEAD advances the HEAD pointer to a new commit hash.
 //
-// commitHash: The hash of the commit to update HEAD to.
-// error: An error if the operation fails, otherwise nil.
+// Advancing Invariants:
+//  - If HEAD is a symbolic reference (typical branch development), it updates the target branch's reference file,
+//    preserving the symbolic link.
+//  - If HEAD is in a detached state (direct hash), it overwrites the HEAD file directly.
 func UpdateHEAD(rootDir string, commitHash string) error {
 	headPath := filepath.Join(rootDir, ".purr", "HEAD")
 	content, err := os.ReadFile(headPath)
@@ -135,13 +134,12 @@ func UpdateHEAD(rootDir string, commitHash string) error {
 
 	ref := strings.TrimSpace(string(content))
 
-	// Case1: If HEAD points to a branch, update the branch file
 	if strings.HasPrefix(ref, "ref:") {
 		branchRef := strings.TrimSpace(strings.TrimPrefix(ref, "ref:"))
 		branchPath := filepath.Join(rootDir, ".purr", branchRef)
 		return os.WriteFile(branchPath, []byte(commitHash+"\n"), 0644)
 	}
 
-	// Case2: Detached HEAD - update HEAD directly
 	return os.WriteFile(headPath, []byte(commitHash+"\n"), 0644)
 }
+

@@ -6,14 +6,18 @@ import (
 	"path/filepath"
 )
 
-// Repository is the central handle for a purr repository.
-// It holds the root directory and provides path resolution helpers
-// so that no other package needs to construct .purr/ paths directly.
+// Repository serves as the central encapsulating handle for a Persephone repository.
+//
+// Encapsulation Design & Separation of Concerns:
+// To prevent filepath construction logic (e.g., `filepath.Join(root, ".purr", "objects", ...)`) from
+// scattering across CLI commands, parsers, and platform wrappers, this struct acts as the Single Source of Truth
+// for directory mapping. If the internal layout or storage structure of the VCS changes in the future,
+// only the helpers in this package need adjustment.
 type Repository struct {
-	RootDir string
+	RootDir string // Absolute or clean relative path to the workspace root
 }
 
-// Open returns a Repository handle for an existing .purr repository at path.
+// Open validates that a `.purr` directory exists at the given path and returns an active Repository handle.
 func Open(path string) (*Repository, error) {
 	purrDir := filepath.Join(path, ".purr")
 	info, err := os.Stat(purrDir)
@@ -23,37 +27,38 @@ func Open(path string) (*Repository, error) {
 	return &Repository{RootDir: path}, nil
 }
 
-// PurrDir returns the path to the .purr directory.
+// PurrDir returns the absolute path to the main repository metadata directory.
 func (r *Repository) PurrDir() string {
 	return filepath.Join(r.RootDir, ".purr")
 }
 
-// ObjectsDir returns the path to the objects directory.
+// ObjectsDir returns the folder containing zlib-compressed content-addressed blobs.
 func (r *Repository) ObjectsDir() string {
 	return filepath.Join(r.PurrDir(), "objects")
 }
 
-// IndexPath returns the path to the index file.
+// IndexPath returns the staging area binary catalog file path.
 func (r *Repository) IndexPath() string {
 	return filepath.Join(r.PurrDir(), "index")
 }
 
-// HeadPath returns the path to the HEAD file.
+// HeadPath returns the current branch/commit symbolic pointer file path.
 func (r *Repository) HeadPath() string {
 	return filepath.Join(r.PurrDir(), "HEAD")
 }
 
-// RefPath returns the path to a reference file within .purr.
+// RefPath resolves the filesystem location of a specific reference (e.g. "refs/heads/main").
 func (r *Repository) RefPath(ref string) string {
 	return filepath.Join(r.PurrDir(), ref)
 }
 
-// ObjectPath returns the path where an object with the given hash is stored.
+// ObjectPath resolves the exact absolute path to a zlib-compressed object file from its 40-character SHA-1 hash.
 func (r *Repository) ObjectPath(hash string) string {
 	return filepath.Join(r.ObjectsDir(), hash[:2], hash[2:])
 }
 
-// ObjectDir returns the directory for an object hash prefix (first 2 chars).
+// ObjectDir returns the parent 2-character hex directory containing the requested object file.
 func (r *Repository) ObjectDir(hash string) string {
 	return filepath.Join(r.ObjectsDir(), hash[:2])
 }
+

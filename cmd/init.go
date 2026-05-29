@@ -8,12 +8,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Define the init subcommand
+// initCmd represents the `purr init` command execution tree.
+//
+// Operational Context:
+// Directs workspace bootstrapping by triggering the creation of VCS structures
+// (the `.purr` repository database directory, refs catalog, objects store, and empty index).
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize a new repository",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// This function runs when user types: purr init
 		err := purrCommands.InitPurrDirectories(".")
 		if err != nil {
 			return err
@@ -26,3 +29,4 @@ var initCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(initCmd)
 }
+

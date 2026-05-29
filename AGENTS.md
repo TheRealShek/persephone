@@ -82,6 +82,7 @@ No env vars required. No external services.
 - **Concurrency safety**: All shared map writes in `Add.go` are protected by `sync.Mutex`; the worker pool size is bounded by a semaphore channel
 - **File naming**: PascalCase in `internal/purrCommands/` (e.g., `Add.go`, `Commit.go`); camelCase in `internal/utils/` (e.g., `commitFunctions.go`)
 - **Index determinism**: Index entries are always sorted alphabetically by path before writing to disk
+- **Build & test boundaries**: Do not build the binary unless strictly necessary. Rely primarily on basic test commands (`go test ./...`) for routine verification to avoid environment resource bottlenecks.
 
 
 ## GOTCHAS
@@ -95,6 +96,7 @@ No env vars required. No external services.
 
 ## VERIFIED
 
-Last verified : `2026-05-28`
-Verified by   : agent session · `9322d7f`
+Last verified : `2026-05-29`
+Verified by   : agent session · `b10efc1`
 Environment   : Linux · Go 1.26.3 · make
+

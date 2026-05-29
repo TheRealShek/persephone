@@ -9,7 +9,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Define the commit subcommand
+// commitCmd represents the `purr commit` command execution tree.
+//
+// Operational Controls:
+// This wrapper extracts and validates required VCS context before committing:
+//  1. Message Enforcement: Requires the `-m` flag to prevent empty commit logs.
+//  2. Pre-flight Config Verification: Checks that global config identity parameters
+//     (name, email) are set, throwing actionable configuration suggestions if missing.
+//  3. Decoupled Processing: Forwards data to the command engine to assemble object nodes.
 var commitCmd = &cobra.Command{
 	Use:   "commit -m [message]",
 	Short: "Record changes to the repository",
@@ -24,7 +31,6 @@ var commitCmd = &cobra.Command{
 			return err
 		}
 
-		// Now call CommitPurrFiles with the required parameters
 		err = purrCommands.CommitPurrFiles(".", message, userName, userEmail)
 		if err != nil {
 			return err
@@ -36,7 +42,7 @@ var commitCmd = &cobra.Command{
 }
 
 func init() {
-	// Add the -m flag for commit message
 	commitCmd.Flags().StringP("message", "m", "", "Commit message")
 	rootCmd.AddCommand(commitCmd)
 }
+

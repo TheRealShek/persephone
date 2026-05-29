@@ -2,50 +2,66 @@ package utils
 
 import "time"
 
+// IndexEntry represents a single file entry staged in the VCS index.
+// It acts as a cache of filesystem stat metadata to enable fast modification checks
+// without reading and re-hashing file content. By comparing this stat data against the
+// actual file metadata, the VCS can quickly identify new, modified, or deleted files.
+// The fields align closely with Git's internal index layout to maintain conceptual parity.
 type IndexEntry struct {
-	// Stat cache (for fast change detection)
-	Ctime time.Time // Change time
-	Mtime time.Time // Modification time
-	Dev   uint32    // Device ID
-	Ino   uint32    // Inode number
-	Mode  uint32    // File permissions
-	Uid   uint32    // User ID
-	Gid   uint32    // Group ID
-	Size  uint32    // File size in bytes
-	// Content identification
-	Sha1 [20]byte // SHA-1 hash of content
-	// Flags
-	Stage uint16 // 0=normal, 1-3=conflict stages
-	// Path
-	Path string // Relative path from repo root
+	// Stat cache metadata for change detection
+	Ctime time.Time // File status change time (metadata modification)
+	Mtime time.Time // File content modification time
+	Dev   uint32    // Device ID where the file resides
+	Ino   uint32    // File inode number for unique file identification on the filesystem
+	Mode  uint32    // File permissions and type (e.g., regular file, executable)
+	Uid   uint32    // User ID of the file owner
+	Gid   uint32    // Group ID of the file owner
+	Size  uint32    // File size in bytes (crucial for rapid modification detection)
+
+	// Content addressable identifier
+	Sha1 [20]byte // 160-bit SHA-1 hash of the zlib-compressed file content
+
+	// VCS flags
+	Stage uint16 // 0 represents normal staged state; 1, 2, and 3 are reserved for merge conflict stages
+
+	// Repository context
+	Path string // File path relative to the repository root directory (e.g. "pkg/foo.go")
 }
 
-// PurrConfig stores user configuration settings (Author)
+// PurrConfig defines the global identity configuration (author/committer credentials).
+// It is read and written in JSON format under the user's home directory (~/.purrconfig)
+// to bypass complex INI parsing or per-repository config overhead, simplifying multi-repo setups.
 type PurrConfig struct {
 	UserName  string `json:"user_name"`
 	UserEmail string `json:"user_email"`
 }
 
-// Clean Approach for func ComputeTreeSHA1()
+// TreeEntries represents a single directory or file entry structured for Git-style tree object building.
+// These entries are sorted lexicographically (directories appended with a trailing '/' during comparison)
+// to match Git's tree formatting constraints exactly, ensuring deterministic hash generation.
 type TreeEntries struct {
-	Name     string
-	Filename string
-	Sha1Hex  string // hex string
-	IsTree   bool   // for sorting (directory if true)
-	Mode     string // file mode (e.g., "100644", "100755", "040000")
+	Name     string // Base name of the file or directory
+	Filename string // Full relative path of the file
+	Sha1Hex  string // Hexadecimal representation of the object's SHA-1 hash
+	IsTree   bool   // True if the entry represents a subdirectory (tree), false for a file (blob)
+	Mode     string // Git-compatible file/tree mode string (e.g., "100644", "100755", "040000")
 }
 
-//
+// Index serves as a in-memory representation of the staged files.
 type Index struct {
 	Entries []IndexEntry
 }
 
-// CommitObj represents a commit object in the repository
+// CommitObj encapsulates commit metadata.
+// While Git uses a plain-text key-value format for commits, Persephone serializes this structure
+// to a zlib-compressed JSON string within .purr/objects for ease of serialization and modern extensibility
+// in Go, while structurally preserving author, committer, and hierarchy links (parent pointers).
 type CommitObj struct {
-	TreeHash   string     `json:"tree"`      // Hash of the tree object
-	ParentHash string     `json:"parent"`    // Hash of parent commit(s)
-	Author     PurrConfig `json:"author"`    // Author information
-	Committer  PurrConfig `json:"committer"` // Committer information (usually same as author)
-	Message    string     `json:"message"`   // Commit message
-	Timestamp  time.Time  `json:"timestamp"` // Unix timestamp for determinism
+	TreeHash   string     `json:"tree"`      // SHA-1 hash of the root tree object representing the repository state
+	ParentHash string     `json:"parent"`    // SHA-1 hash of the parent commit (empty string for initial commits)
+	Author     PurrConfig `json:"author"`    // Creator of the changes
+	Committer  PurrConfig `json:"committer"` // Person who committed the changes (usually identical to the author)
+	Message    string     `json:"message"`   // Developer-provided commit message
+	Timestamp  time.Time  `json:"timestamp"` // Time of commit generation, preserved for deterministic hashing
 }
+

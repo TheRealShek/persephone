@@ -15,7 +15,16 @@ var (
 	styleOnce sync.Once
 	enabled   bool
 
-	// Vibrant, modern hex-based terminal color palette
+	// Vibrant, modern hex-based terminal color palette.
+	//
+	// Semantic Styling System:
+	// Rather than using arbitrary terminal color index IDs (which vary widely across configurations),
+	// we bind strict HSL-tailored premium Hex tones to standard VCS states:
+	//  - Emerald Green: Successful operations & added/staged items
+	//  - Coral Red: Hard errors, failures & deleted/removed items
+	//  - Amber Orange: Changed metadata warning states & modified files
+	//  - Electric Cyan: Information banners, helper tags & standard file permissions
+	//  - Cool Slate Gray: Descriptive footnotes, SHA hash prefixes & minor timestamps
 	greenStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#22C55E")).Bold(true) // Emerald Green
 	redStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444")).Bold(true) // Coral Red
 	yellowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B")).Bold(true) // Amber Orange
@@ -35,6 +44,13 @@ var (
 	headerStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#F472B6")).Bold(true).Underline(true) // Rose Pink Accent
 )
 
+// Enabled determines if the stdout session is capable of displaying ANSI Escape sequences.
+//
+// Accessibility & Pipelining Invariants:
+// We explicitly check standard os.Getenv("NO_COLOR"). This is a critical VCS design contract:
+// if a developer redirects purr output to a file (e.g. `purr ls > output.txt`), or runs a CI/CD job,
+// the terminal capability check fails or NO_COLOR skips rendering, ensuring output files contain
+// clean plain text rather than ANSI control sequences.
 func Enabled() bool {
 	styleOnce.Do(func() {
 		if os.Getenv("NO_COLOR") != "" {
@@ -48,7 +64,9 @@ func Enabled() bool {
 	return enabled
 }
 
+// render applies styling to target text, falling back to plain text if terminal capabilities are missing.
 func render(style lipgloss.Style, text string) string {
+
 	if !Enabled() {
 		return text
 	}
@@ -183,6 +201,13 @@ func FileName(name string) string {
 	return render(pathStyle, name)
 }
 
+// StyledPath decomposes a workspace path and highlights directory steps and filenames differently.
+//
+// Visual Parsing Engine:
+// We parse the path using the platform-appropriate path separator. Intermediate directories
+// are highlighted with directory styles (`dirStyle` muted sky blue), while the terminal node is highlighted
+// with filename styles (`pathStyle` vibrant ocean blue). This provides premium legibility,
+// helping developers scanning massive CLI outputs easily distinguish package contexts from actual files.
 func StyledPath(path string) string {
 	if path == "" || !Enabled() {
 		return path
@@ -203,3 +228,4 @@ func StyledPath(path string) string {
 
 	return strings.Join(parts, separator)
 }
+
