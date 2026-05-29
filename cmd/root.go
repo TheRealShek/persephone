@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"Persephone/internal/ui"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -31,14 +32,19 @@ func Execute() {
 
 	err := rootCmd.Execute()
 	if err != nil {
-		fmt.Println(ui.Errorf("%v", err))
-		os.Exit(1)
+		var hintErr *ui.HintError
+		if errors.As(err, &hintErr) {
+			fmt.Println(ui.Hintf("%v", hintErr.Err))
+			os.Exit(1)
+		} else {
+			fmt.Println(ui.Errorf("%v", err))
+			os.Exit(1)
+		}
 	}
 }
 
 func init() {
 	// Here you will define your flags and configuration settings.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 // setCustomHelp sets the HelpFunc and UsageFunc using ui styling

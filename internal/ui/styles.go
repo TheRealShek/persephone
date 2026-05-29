@@ -20,6 +20,7 @@ var (
 	redStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444")).Bold(true) // Coral Red
 	yellowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B")).Bold(true) // Amber Orange
 	cyanStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#06B6D4")).Bold(true) // Electric Cyan
+	blueStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#3B82F6")).Bold(true) // Ocean Blue Hint
 	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))            // Cool Slate Gray
 	boldStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#F1F5F9"))
 
@@ -29,6 +30,7 @@ var (
 	dirStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#60A5FA"))            // Muted Sky Blue Directories
 	successBadge = lipgloss.NewStyle().Background(lipgloss.Color("#15803D")).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 1).Bold(true)
 	infoBadge    = lipgloss.NewStyle().Background(lipgloss.Color("#0369A1")).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 1).Bold(true)
+	hintBadge    = lipgloss.NewStyle().Background(lipgloss.Color("#2563EB")).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 1).Bold(true)
 	errorBadge   = lipgloss.NewStyle().Background(lipgloss.Color("#B91C1C")).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 1).Bold(true)
 	headerStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#F472B6")).Bold(true).Underline(true) // Rose Pink Accent
 )
@@ -106,6 +108,27 @@ func Infof(format string, args ...any) string {
 	badge := infoBadge.Render(" INFO ")
 	text := cyanStyle.Render(fmt.Sprintf(format, args...))
 	return fmt.Sprintf("%s %s", badge, text)
+}
+
+func Hintf(format string, args ...any) string {
+	if !Enabled() {
+		return fmt.Sprintf(format, args...)
+	}
+	badge := hintBadge.Render(" HINT ")
+	text := blueStyle.Render(fmt.Sprintf(format, args...))
+	return fmt.Sprintf("%s %s", badge, text)
+}
+
+type HintError struct {
+	Err error
+}
+
+func (e *HintError) Error() string {
+	return e.Err.Error()
+}
+
+func NewHintError(err error) error {
+	return &HintError{Err: err}
 }
 
 func Metadataf(format string, args ...any) string {

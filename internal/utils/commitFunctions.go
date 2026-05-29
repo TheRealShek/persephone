@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"Persephone/internal/ui"
 )
 
 /*
@@ -218,22 +220,17 @@ func CheckConfigFile() (string, string, error) {
 	// Read config to get user.name and user.email
 	config, err := ReadConfig()
 	if err != nil {
-		fmt.Printf("Error reading config: %v\n", err)
-		return "", "", err
+		return "", "", fmt.Errorf("error reading config: %w", err)
 	}
 
 	// Check if user.name is set
 	if config.UserName == "" {
-		fmt.Println("Error: user.name is not set.")
-		fmt.Println("Please configure it using: purr config user.name \"Your Name\"")
-		return "", "", err
+		return "", "", ui.NewHintError(fmt.Errorf("user.name is not set.\nPlease configure it using: purr config user.name \"Your Name\""))
 	}
 
 	// Check if user.email is set
 	if config.UserEmail == "" {
-		fmt.Println("Error: user.email is not set.")
-		fmt.Println("Please configure it using: purr config user.email \"your.email@example.com\"")
-		return "", "", err
+		return "", "", ui.NewHintError(fmt.Errorf("user.email is not set.\nPlease configure it using: purr config user.email \"your.email@example.com\""))
 	}
 	return config.UserName, config.UserEmail, nil
 }

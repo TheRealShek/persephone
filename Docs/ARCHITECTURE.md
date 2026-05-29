@@ -13,7 +13,7 @@ internal/
 │   ├── Commit.go        ← owns zlib compression, tree building, HEAD resolution
 │   ├── Config.go
 │   ├── Init.go          ← Windows syscalls without build tags
-│   └── LsFiles.go
+│   └── Ls.go
 └── utils/               ← everything else dumped here
     ├── commitFunctions.go  ← tree objects + commit objects + HEAD + branch refs + config check
     ├── config.go           ← global config I/O
@@ -50,7 +50,7 @@ Persephone/
 │   ├── add.go
 │   ├── commit.go
 │   ├── config.go
-│   └── ls_files.go
+│   └── ls.go
 │
 ├── internal/
 │   ├── repository/                  # Central repo handle — the spine of the system
@@ -94,7 +94,7 @@ Persephone/
 │   │   ├── init.go                 # Init logic (no CLI, no OS awareness)
 │   │   ├── add.go                  # Add logic (receives repo handle, no concurrency)
 │   │   ├── commit.go               # Commit logic
-│   │   └── ls_files.go
+│   │   └── ls.go
 │   │
 │   ├── hash/                        # Hashing abstraction
 │   │   └── hash.go                 # OID type, HashObject(), currently SHA-1, swappable later
@@ -279,7 +279,7 @@ Lists all files currently tracked in the staging index.
 sequenceDiagram
     actor User
     participant CLI as cmd/ls.go (Cobra)
-    participant Core as internal/purrCommands/LsFiles.go
+    participant Core as internal/purrCommands/Ls.go
     participant Utils as internal/utils (Index Reader)
 
     User->>CLI: Runs "purr ls [--debug]"
@@ -306,7 +306,7 @@ sequenceDiagram
     CLI-->>User: Displays list outputs
 ```
 
-1. **Loading Index**: The CLI calls `ListFiles(showDebug)` in `internal/purrCommands/LsFiles.go`. It reads the binary database under `.purr/index` using the `utils.ReadIndex` library helper.
+1. **Loading Index**: The CLI calls `ListFiles(showDebug)` in `internal/purrCommands/Ls.go`. It reads the binary database under `.purr/index` using the `utils.ReadIndex` library helper.
 2. **Empty Bounds Handling**: If the index contains `0` records, the command exits with `"No files in index"`.
 3. **Output Rendering**:
    - **Default Mode**: Displays the calculated object hash, file mode, and relative path.

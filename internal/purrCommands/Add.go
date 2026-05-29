@@ -64,6 +64,7 @@ func addAllPurrFiles(path string) error {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var processingErrs []error
+	var addedCount, skippedCount int
 
 	utils.WalkAndAddFiles(path, func(filePath string) error {
 		wg.Add(1)
@@ -96,6 +97,9 @@ func addAllPurrFiles(path string) error {
 			mu.Unlock()
 			if exists {
 				if fileInfo.ModTime().Equal(existingEntry.Mtime) {
+					mu.Lock()
+					skippedCount++
+					mu.Unlock()
 					return
 				}
 			}
@@ -116,6 +120,7 @@ func addAllPurrFiles(path string) error {
 			// Update map with lock
 			mu.Lock()
 			indexMap[relPath] = &newEntry
+			addedCount++
 			mu.Unlock()
 
 		}(filePath)
@@ -145,6 +150,12 @@ func addAllPurrFiles(path string) error {
 	indexPath := filepath.Join(path, ".purr", "index")
 	if err := utils.WriteIndex(indexPath, updatedEntries); err != nil {
 		return fmt.Errorf("failed to write index: %w", err)
+	}
+
+	if addedCount > 0 {
+		fmt.Printf("%s\n", ui.Successf("Successfully added %d file(s) to index", addedCount))
+	} else {
+		fmt.Println(ui.Metadata("No files were added to index"))
 	}
 
 	return nil

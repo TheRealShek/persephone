@@ -16,13 +16,13 @@ func ListFiles(rootDir string, showDebug bool) error {
 	}
 
 	if len(entries) == 0 {
-		fmt.Println(ui.Metadata("No files in index"))
+		fmt.Println(ui.Metadata("No files staged"))
 		return nil
 	}
 
 	if showDebug {
 		// Detailed output similar to git ls --debug
-		fmt.Printf("%s\n\n", ui.SectionHeader(fmt.Sprintf("Found %d file(s) in index:", len(entries))))
+		fmt.Printf("%s\n\n", ui.SectionHeader(fmt.Sprintf("%d file(s) staged:", len(entries))))
 		for i, entry := range entries {
 			if i > 0 {
 				fmt.Println()
@@ -41,9 +41,10 @@ func ListFiles(rootDir string, showDebug bool) error {
 		}
 	} else {
 		// Simple output (default)
-		fmt.Printf("%s\n\n", ui.SectionHeader(fmt.Sprintf("Found %d file(s) in index:", len(entries))))
+		fmt.Printf("%s\n\n", ui.SectionHeader(fmt.Sprintf("%d file(s) staged:", len(entries))))
 		for _, entry := range entries {
-			fmt.Printf("%s %s %s\n", ui.Metadata(fmt.Sprintf("%x", entry.Sha1)), ui.Metadata(fmt.Sprintf("%06o", entry.Mode)), ui.StyledPath(entry.Path))
+			shortSha := fmt.Sprintf("%x", entry.Sha1)[:7]
+			fmt.Printf("%s  %s  %s\n", ui.StyledPath(entry.Path), ui.Metadata(shortSha), ui.Metadata(fmt.Sprintf("%06o", entry.Mode)))
 		}
 	}
 

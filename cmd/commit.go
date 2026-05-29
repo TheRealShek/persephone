@@ -16,7 +16,7 @@ var commitCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		message, _ := cmd.Flags().GetString("message")
 		if message == "" {
-			return fmt.Errorf("commit message is required. Use -m \"message\"")
+			return ui.NewHintError(fmt.Errorf("commit message is required. Use -m \"message\""))
 		}
 
 		userName, userEmail, err := utils.CheckConfigFile()
