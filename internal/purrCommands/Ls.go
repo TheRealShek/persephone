@@ -27,8 +27,14 @@ func ListFiles(rootDir string, showDebug bool) error {
 		return nil
 	}
 
+	plural := "s"
+	if len(entries) == 1 {
+		plural = ""
+	}
+	headerText := fmt.Sprintf("%d file%s staged:", len(entries), plural)
+
 	if showDebug {
-		fmt.Printf("%s\n\n", ui.SectionHeader(fmt.Sprintf("%d file(s) staged:", len(entries))))
+		fmt.Printf("%s\n\n", ui.SectionHeader(headerText))
 		for i, entry := range entries {
 			if i > 0 {
 				fmt.Println()
@@ -46,10 +52,12 @@ func ListFiles(rootDir string, showDebug bool) error {
 			fmt.Printf("%s %s\n", ui.Metadata("Stage:"), ui.Metadata(fmt.Sprintf("%d", entry.Stage)))
 		}
 	} else {
-		fmt.Printf("%s\n\n", ui.SectionHeader(fmt.Sprintf("%d file(s) staged:", len(entries))))
+		fmt.Printf("%s\n\n", ui.SectionHeader(headerText))
+
+		fmt.Println(ui.LsHeader())
 		for _, entry := range entries {
 			shortSha := fmt.Sprintf("%x", entry.Sha1)[:7]
-			fmt.Printf("%s  %s  %s\n", ui.StyledPath(entry.Path), ui.Metadata(shortSha), ui.Metadata(fmt.Sprintf("%06o", entry.Mode)))
+			fmt.Println(ui.LsRow(entry.Path, shortSha, fmt.Sprintf("%06o", entry.Mode)))
 		}
 	}
 

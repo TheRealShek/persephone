@@ -56,6 +56,7 @@ No env vars required. No external services.
 - Index uses a Git-compatible binary format: 12-byte header (`DIRC` magic + version 2 + entry count), followed by serialized `IndexEntry` structs
 - User config stored globally at `~/.purrconfig` as JSON (not per-repo)
 - `internal/purrCommands/` contains command logic; `internal/utils/` contains shared types, index I/O, SHA-1 hashing, and commit object helpers — these two packages are intentionally separated; commands import utils but not vice versa
+- `internal/ui/` centralizes all terminal UI components, `lipgloss` styling, and layout formatting. Command packages (`cmd/` and `internal/purrCommands/`) must strictly invoke exported helpers from `ui` rather than defining raw styles or instantiating `lipgloss` directly.
 - Commit objects use JSON serialization (not Git's plain-text format) — see `utils.CommitObj` struct
 
 
@@ -67,6 +68,7 @@ No env vars required. No external services.
 | `cmd/root.go` | Cobra root command definition and flag setup |
 | `cmd/{init,add,commit,config,ls}.go` | Thin CLI wrappers — each delegates to `internal/purrCommands/` |
 | `internal/purrCommands/` | Core command logic: `Init.go`, `Add.go`, `Commit.go`, `Config.go`, `Ls.go` |
+| `internal/ui/` | All UI components, styles, lipgloss logic, and output formatting |
 | `internal/utils/types.go` | All shared data types: `IndexEntry`, `PurrConfig`, `TreeEntries`, `CommitObj` |
 | `internal/utils/index.go` | Binary index read/write (`ReadIndex`, `WriteIndex`) |
 | `internal/utils/commitFunctions.go` | Tree/commit object building, SHA-1 computation, zlib compression |
@@ -93,10 +95,22 @@ No env vars required. No external services.
 - **Index header**: The `.purr/index` file must have a valid 12-byte header or `ReadIndex` will fail — `purr init` creates this automatically
 - **Config location**: `~/.purrconfig` is global, not per-repo — there is no `.purr/config` equivalent
 
+### Comments
+
+Write comments for future maintainers, not code readers.
+
+- Always add comments where design intent, constraints, invariants, trade-offs, or non-obvious behavior would otherwise require reverse-engineering.
+- Explain why, constraints, invariants, trade-offs, and non-obvious behavior.
+- Do not narrate the implementation or restate the code.
+- Remove low-value comments when editing code.
+- Prefer fewer high-signal comments over exhaustive coverage.
+- Leave self-explanatory code uncommented.
+
+Rule: if a comment does not help a contributor understand the design or safely modify the code, do not write it.
 
 ## VERIFIED
 
 Last verified : `2026-05-29`
-Verified by   : agent session · `b10efc1`
+Verified by   : agent session · `c340610`
 Environment   : Linux · Go 1.26.3 · make
 

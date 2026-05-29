@@ -14,8 +14,8 @@ import (
 // consumes argument parameters, catches operational errors, and delegates all processing, hashing,
 // worker pooling, and index writes to `purrCommands.AddPurrFiles` within the decoupled commands engine.
 var addCmd = &cobra.Command{
-	Use:   "add [files]",
-	Short: "Add file contents to the index",
+	Use:   "add <file|.>",
+	Short: "Stage files",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := purrCommands.AddPurrFiles(args...)
 		if err != nil {

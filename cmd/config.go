@@ -12,8 +12,8 @@ import (
 // Provides the CLI wrapper for setting identity keys in the developer's global config file.
 // It forwards execution parameters directly to the config command module to perform disk I/O.
 var configCmd = &cobra.Command{
-	Use:   "config <key> [value]",
-	Short: "Get and set repository or global options",
+	Use:   "config <key> <value>",
+	Short: "Get and set options",
 	Long: `Get and set user configuration values.
 
 Examples:

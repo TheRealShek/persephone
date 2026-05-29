@@ -32,16 +32,26 @@ var (
 	blueStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#3B82F6")).Bold(true) // Ocean Blue Hint
 	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))            // Cool Slate Gray
 	boldStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#F1F5F9"))
+	headerStyle = lipgloss.NewStyle().Bold(true).Underline(true)
+	branchStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#A855F7")).Bold(true)
+	dirStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))
+	pathStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#3B82F6"))
 
-	// Custom UI Element styles
-	branchStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#C084FC")).Bold(true) // Violet Branch
-	pathStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#3B82F6")).Bold(true) // Ocean Blue Path
-	dirStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#60A5FA"))            // Muted Sky Blue Directories
-	successBadge = lipgloss.NewStyle().Background(lipgloss.Color("#15803D")).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 1).Bold(true)
-	infoBadge    = lipgloss.NewStyle().Background(lipgloss.Color("#0369A1")).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 1).Bold(true)
-	hintBadge    = lipgloss.NewStyle().Background(lipgloss.Color("#2563EB")).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 1).Bold(true)
-	errorBadge   = lipgloss.NewStyle().Background(lipgloss.Color("#B91C1C")).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 1).Bold(true)
-	headerStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#F472B6")).Bold(true).Underline(true) // Rose Pink Accent
+	successBadge = lipgloss.NewStyle().Background(lipgloss.Color("#22C55E")).Foreground(lipgloss.Color("#000000")).Bold(true)
+	infoBadge    = lipgloss.NewStyle().Background(lipgloss.Color("#06B6D4")).Foreground(lipgloss.Color("#000000")).Bold(true)
+	hintBadge    = lipgloss.NewStyle().Background(lipgloss.Color("#3B82F6")).Foreground(lipgloss.Color("#000000")).Bold(true)
+	errorBadge   = lipgloss.NewStyle().Background(lipgloss.Color("#EF4444")).Foreground(lipgloss.Color("#000000")).Bold(true)
+
+	// Command Help and Ls formatting styles
+	whiteStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Bold(true)
+	plainWhiteStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
+	faintWhiteStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Faint(true)
+	cmdHelpStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#22C55E")).MarginLeft(2).Width(10)
+	flagHelpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#22C55E")).MarginLeft(2).Width(20)
+	lsHeaderStyle     = cyanStyle.Copy().Width(20)
+	lsHashHeaderStyle = cyanStyle.Copy().Width(11)
+	lsFileStyle       = plainWhiteStyle.Copy().Width(20)
+	lsHashStyle       = dimStyle.Copy().Width(11)
 )
 
 // Enabled determines if the stdout session is capable of displaying ANSI Escape sequences.
@@ -98,6 +108,53 @@ func SectionHeader(text string) string {
 	return render(headerStyle, text)
 }
 
+// Help and List UI Formatters
+
+func HelpTagline(text string) string {
+	return render(whiteStyle, text)
+}
+
+func HelpSection(text string) string {
+	return render(cyanStyle, text)
+}
+
+func HelpGroup(text string) string {
+	return render(yellowStyle, text)
+}
+
+func HelpCommand(name, short, usage string) string {
+	paddedShort := fmt.Sprintf("%-29s", short)
+	if !Enabled() {
+		return fmt.Sprintf("  %-10s  %s(%s)", name, paddedShort, usage)
+	}
+	return cmdHelpStyle.Render(name) + "  " + faintWhiteStyle.Render(paddedShort) + faintWhiteStyle.Render("("+usage+")")
+}
+
+func HelpFlag(name, usage string) string {
+	if !Enabled() {
+		return fmt.Sprintf("  %-20s  %s", name, usage)
+	}
+	return flagHelpStyle.Render(name) + "  " + dimStyle.Render(usage)
+}
+
+func HelpFooter(text string) string {
+	return render(dimStyle, text)
+}
+
+func LsHeader() string {
+	if !Enabled() {
+		return fmt.Sprintf("%-20s%-11s%s", "FILE", "HASH", "PERM")
+	}
+	return lsHeaderStyle.Render("FILE") + lsHashHeaderStyle.Render("HASH") + cyanStyle.Render("PERM")
+}
+
+func LsRow(file, hash, perm string) string {
+	if !Enabled() {
+		return fmt.Sprintf("%-20s%-11s%s", file, hash, perm)
+	}
+	return lsFileStyle.Render(file) + lsHashStyle.Render(hash) + dimStyle.Render(perm)
+}
+
 func ErrorText(text string) string {
 	return render(redStyle, text)
 }
@@ -111,30 +168,27 @@ func ErrorMessage(err error) string {
 }
 
 func Successf(format string, args ...any) string {
+	msg := fmt.Sprintf(format, args...)
 	if !Enabled() {
-		return fmt.Sprintf(format, args...)
+		return "[SUCCESS] " + msg
 	}
-	badge := successBadge.Render(" SUCCESS ")
-	text := greenStyle.Render(fmt.Sprintf(format, args...))
-	return fmt.Sprintf("%s %s", badge, text)
+	return greenStyle.Render("[SUCCESS]") + " " + msg
 }
 
 func Infof(format string, args ...any) string {
+	msg := fmt.Sprintf(format, args...)
 	if !Enabled() {
-		return fmt.Sprintf(format, args...)
+		return "[INFO]    " + msg
 	}
-	badge := infoBadge.Render(" INFO ")
-	text := cyanStyle.Render(fmt.Sprintf(format, args...))
-	return fmt.Sprintf("%s %s", badge, text)
+	return cyanStyle.Render("[INFO]") + "    " + msg
 }
 
 func Hintf(format string, args ...any) string {
+	msg := fmt.Sprintf(format, args...)
 	if !Enabled() {
-		return fmt.Sprintf(format, args...)
+		return "[HINT]    " + msg
 	}
-	badge := hintBadge.Render(" HINT ")
-	text := blueStyle.Render(fmt.Sprintf(format, args...))
-	return fmt.Sprintf("%s %s", badge, text)
+	return blueStyle.Render("[HINT]") + "    " + msg
 }
 
 type HintError struct {
@@ -154,12 +208,11 @@ func Metadataf(format string, args ...any) string {
 }
 
 func Errorf(format string, args ...any) string {
+	msg := fmt.Sprintf(format, args...)
 	if !Enabled() {
-		return fmt.Sprintf(format, args...)
+		return "[ERROR]   " + msg
 	}
-	badge := errorBadge.Render(" ERROR ")
-	text := redStyle.Render(fmt.Sprintf(format, args...))
-	return fmt.Sprintf("%s %s", badge, text)
+	return redStyle.Render("[ERROR]") + "   " + msg
 }
 
 func DiffAddedLine(line string) string {

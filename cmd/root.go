@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -49,6 +48,7 @@ func Execute() {
 
 func init() {
 	// Root-level global flags or configurations go here.
+	// NOTE: The default Cobra `--toggle` flag was intentionally removed. Do not re-add it.
 }
 
 // setCustomHelp intercepts Cobra's default reflection-based help printer.
@@ -63,38 +63,68 @@ func init() {
 func setCustomHelp(rootCmd *cobra.Command) {
 	helpFunc := func(cmd *cobra.Command, args []string) {
 		out := cmd.OutOrStdout()
-		ui.Enabled() // Initialize HSL color maps before formatting text buffers
+		ui.Enabled() // Initialize HSL color maps
 
-		// Print long description if present, falling back to short description
-		if cmd.Long != "" {
-			fmt.Fprintln(out, ui.Metadata(strings.TrimSpace(cmd.Long)))
-			fmt.Fprintln(out)
-		} else if cmd.Short != "" {
-			fmt.Fprintln(out, ui.Metadata(strings.TrimSpace(cmd.Short)))
-			fmt.Fprintln(out)
-		}
+		// Tagline
+		fmt.Fprintln(out, ui.HelpTagline("Persephone — distributed VCS built in Go"))
+		fmt.Fprintln(out)
 
 		if cmd.Runnable() || cmd.HasAvailableSubCommands() {
-			fmt.Fprintln(out, ui.SectionHeader("Usage:"))
+			fmt.Fprintln(out, ui.HelpSection("Usage"))
 			fmt.Fprintf(out, "  %s\n\n", cmd.UseLine())
 		}
 
-		// Iterate through active subcommands and format them into an aligned list
 		if cmd.HasAvailableSubCommands() {
-			fmt.Fprintln(out, ui.SectionHeader("Available Commands:"))
-			for _, c := range cmd.Commands() {
-				if !c.IsAvailableCommand() || c.Name() == "help" || c.Name() == "completion" {
-					continue
+			fmt.Fprintln(out, ui.HelpSection("Available Commands"))
+			
+			getCmd := func(name string) *cobra.Command {
+				for _, c := range cmd.Commands() {
+					if c.Name() == name {
+						return c
+					}
 				}
-				paddedName := fmt.Sprintf("%-12s", c.Name())
-				fmt.Fprintf(out, "  %s %s\n", ui.Added(paddedName), ui.Metadata(c.Short))
+				return nil
 			}
-			fmt.Fprintln(out)
+
+			repoCmds := []string{"init", "config"}
+			repoFound := false
+			for _, name := range repoCmds {
+				if getCmd(name) != nil {
+					repoFound = true
+					break
+				}
+			}
+			if repoFound {
+				fmt.Fprintln(out, ui.HelpGroup("Repository"))
+				for _, name := range repoCmds {
+					if c := getCmd(name); c != nil {
+						fmt.Fprint(out, ui.HelpCommand(c.Name(), c.Short, c.UseLine())+"\n")
+					}
+				}
+				fmt.Fprintln(out)
+			}
+
+			indexCmds := []string{"add", "ls", "commit"}
+			indexFound := false
+			for _, name := range indexCmds {
+				if getCmd(name) != nil {
+					indexFound = true
+					break
+				}
+			}
+			if indexFound {
+				fmt.Fprintln(out, ui.HelpGroup("Index"))
+				for _, name := range indexCmds {
+					if c := getCmd(name); c != nil {
+						fmt.Fprint(out, ui.HelpCommand(c.Name(), c.Short, c.UseLine())+"\n")
+					}
+				}
+				fmt.Fprintln(out)
+			}
 		}
 
-		// Iterate through active flags, showing short and long forms aligned together
 		if cmd.HasAvailableFlags() {
-			fmt.Fprintln(out, ui.SectionHeader("Flags:"))
+			fmt.Fprintln(out, ui.HelpSection("Flags"))
 			cmd.Flags().VisitAll(func(f *pflag.Flag) {
 				if f.Hidden {
 					return
@@ -105,16 +135,12 @@ func setCustomHelp(rootCmd *cobra.Command) {
 				} else {
 					flagName = fmt.Sprintf("    --%s", f.Name)
 				}
-				paddedFlag := fmt.Sprintf("%-14s", flagName)
-				fmt.Fprintf(out, "  %s %s\n", ui.Info(paddedFlag), ui.Metadata(f.Usage))
+				fmt.Fprint(out, ui.HelpFlag(flagName, f.Usage)+"\n")
 			})
 			fmt.Fprintln(out)
 		}
 
-		if cmd.HasAvailableSubCommands() {
-			footer := fmt.Sprintf("Use \"%s [command] --help\" for more information about a command.", cmd.CommandPath())
-			fmt.Fprintln(out, ui.Metadata(footer))
-		}
+		fmt.Fprintln(out, ui.HelpFooter("purr [command] --help for more info"))
 	}
 
 	rootCmd.SetHelpFunc(helpFunc)

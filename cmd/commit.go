@@ -18,8 +18,9 @@ import (
 //     (name, email) are set, throwing actionable configuration suggestions if missing.
 //  3. Decoupled Processing: Forwards data to the command engine to assemble object nodes.
 var commitCmd = &cobra.Command{
-	Use:   "commit -m [message]",
-	Short: "Record changes to the repository",
+	Use:   "commit -m \"message\"",
+	Short: "Record changes",
+	DisableFlagsInUseLine: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		message, _ := cmd.Flags().GetString("message")
 		if message == "" {

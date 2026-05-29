@@ -15,7 +15,7 @@ import (
 // (the `.purr` repository database directory, refs catalog, objects store, and empty index).
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Initialize a new repository",
+	Short: "Init repository",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := purrCommands.InitPurrDirectories(".")
 		if err != nil {
