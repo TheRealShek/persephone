@@ -13,7 +13,7 @@
 ## PROJECT
 
 **Persephone** — An experimental, concurrency-first reimagining of Git as a modern VCS, built in Go. CLI tool is called `purr`.
-Stack: Go 1.25+ · Cobra CLI · flat-file `.purr/objects` (Git-compatible layout) · local only
+Stack: Go 1.25+ (Minimum requirement) · Cobra CLI · flat-file `.purr/objects` (Git-compatible layout) · local only
 Shape: monorepo no · single service (CLI binary) · no API (local CLI tool)
 
 
@@ -34,6 +34,9 @@ make dev ARGS="init"                    # e.g. runs `go run ./cmd/purr init`
 
 # Run all tests
 make test                               # go test -v ./...
+
+# Run targeted single-package tests (faster)
+go test ./internal/purrCommands/...     # skip full suite when doing isolated work
 
 # Run tests with race detector
 go test -race ./...
@@ -57,7 +60,7 @@ No env vars required. No external services.
 - User config stored globally at `~/.purrconfig` as JSON (not per-repo)
 - `internal/purrCommands/` contains command logic; `internal/utils/` contains shared types, index I/O, SHA-1 hashing, and commit object helpers — these two packages are intentionally separated; commands import utils but not vice versa
 - `internal/ui/` centralizes all terminal UI components, `lipgloss` styling, and layout formatting. Command packages (`cmd/` and `internal/purrCommands/`) must strictly invoke exported helpers from `ui` rather than defining raw styles or instantiating `lipgloss` directly.
-- Commit objects use JSON serialization (not Git's plain-text format) — see `utils.CommitObj` struct
+- Tree objects use Git-compatible recursive formats, supporting nested `040000` sub-tree serialization.
 
 
 ## LAYOUT
@@ -90,7 +93,8 @@ No env vars required. No external services.
 ## GOTCHAS
 
 - **Module name**: The Go module is named `Persephone` (capital P) — imports must use `Persephone/internal/...`, not lowercase
-- **No tests yet**: `make test` runs but there are no test files in the repo — `go test ./...` passes vacuously
+- **JSON Commits**: Commit objects use JSON serialization (not Git's standard plain-text format) — see `utils.CommitObj` struct. This breaks direct interoperability with some Git tools.
+- **Testing nuances**: The test suite covers E2E deletion scenarios and recursive tree building, but always run `make test` and `go test -race ./...` before committing to catch concurrency regressions.
 - **Hidden files**: Both `purr add .` and `purr add <file>` skip files/directories starting with `.` — this is intentional, not a bug
 - **Index header**: The `.purr/index` file must have a valid 12-byte header or `ReadIndex` will fail — `purr init` creates this automatically
 - **Config location**: `~/.purrconfig` is global, not per-repo — there is no `.purr/config` equivalent
@@ -111,6 +115,6 @@ Rule: if a comment does not help a contributor understand the design or safely m
 ## VERIFIED
 
 Last verified : `2026-05-29`
-Verified by   : agent session · `c340610`
-Environment   : Linux · Go 1.26.3 · make
+Verified by   : agent session · `05856dd128c7`
+Environment   : Linux · Go 1.26.3 (Verified) · make
 

@@ -570,3 +570,36 @@ func TestBuildCommitObject_MissingAuthor(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildTreeObject_RecursiveSubtrees(t *testing.T) {
+	root := t.TempDir()
+	setupPurrDir(t, root)
+
+	entries := []*TreeEntries{
+		{Mode: "100644", Name: "root.txt", Sha1Hex: strings.Repeat("a", 40)},
+		{Mode: "100644", Name: "subdir/file.txt", Sha1Hex: strings.Repeat("b", 40)},
+		{Mode: "100644", Name: "subdir/deep/nested.txt", Sha1Hex: strings.Repeat("c", 40)},
+	}
+
+	treeContent, err := BuildTreeObject(root, entries)
+	if err != nil {
+		t.Fatalf("BuildTreeObject() error: %v", err)
+	}
+
+	contentStr := string(treeContent)
+
+	// It should contain the root file
+	if !strings.Contains(contentStr, "100644 root.txt\x00") {
+		t.Errorf("expected root.txt in root tree, got: %q", contentStr)
+	}
+
+	// It should contain the subdir as a tree
+	if !strings.Contains(contentStr, "040000 subdir\x00") {
+		t.Errorf("expected subdir tree entry in root tree, got: %q", contentStr)
+	}
+
+	// It should NOT contain flattened paths
+	if strings.Contains(contentStr, "subdir/file.txt") {
+		t.Errorf("expected root tree to NOT contain flattened paths")
+	}
+}

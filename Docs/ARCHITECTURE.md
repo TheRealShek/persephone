@@ -364,6 +364,7 @@ sequenceDiagram
     alt Add All ("add .")
         Core->>OS: Walk directory tree recursively
         OS-->>Core: Return file paths (skipping hidden objects)
+        Core->>Core: Compare paths to Index and flag deletions
     else Add Specific Files
         Core->>Core: Filter out invalid / out-of-bounds files
     end
@@ -384,8 +385,8 @@ sequenceDiagram
 
 1. **Directory Checks**: Core calls `AddPurrFiles(args...)` from `internal/purrCommands/Add.go`, validating that the directory has been initialized with a `.purr` storage root.
 2. **Workspace Traversal**:
-   - **Staging All**: Walks the current directory recursively skipping hidden folders and `.purr` contents.
-   - **Staging Specific Paths**: Collects the files listed in the arguments, filtering out missing or out-of-bounds files.
+   - **Staging All**: Walks the current directory recursively skipping hidden folders and `.purr` contents. Files present in the old index but missing from the disk are removed from the staging area.
+   - **Staging Specific Paths**: Collects the files listed in the arguments, gracefully unstaging files if they have been deleted.
 3. **Concurrent Hashing (Worker Pool)**: For modified or new files, tasks are distributed to a concurrent worker pool:
    - Calculates the `SHA-1` checksum of the file's raw content.
    - Writes a zlib-compressed blob object to `.purr/objects/XX/YYYY...` only if the file content has changed.
@@ -410,7 +411,9 @@ sequenceDiagram
     Core->>OS: Read current index entries & active HEAD pointer
 
     Core->>Core: Convert index records into Tree entries
-    Core->>Core: Serialize and compute Tree SHA-1
+    Core->>Core: Group files recursively by directory
+    Core->>Core: Serialize and compute nested sub-tree SHA-1s
+    Core->>Core: Serialize and compute root Tree SHA-1
 
     opt Parent commit exists
         Core->>OS: Read parent commit's Tree hash
@@ -434,9 +437,11 @@ sequenceDiagram
 
 1. **Metadata Setup**: Extracts current stage data from `.purr/index` and fetches the parent commit reference by reading the local branch ref pointed to by `.purr/HEAD`.
 2. **Tree Object Assembly**:
-   - Groups index files into directory entries.
-   - Serializes folders into standard Tree format entries.
-   - Computes the Tree `SHA-1` hash.
+   - Recursively groups index files by their parent directories.
+   - Assembles sub-tree objects containing nested entries.
+   - Hashes and serializes all sub-tree directories.
+   - Assembles the root Tree object linking files and sub-trees.
+   - Computes the root Tree `SHA-1` hash.
 3. **Deduplication Validation**: Compares the new Tree hash with the parent commit's Tree hash. If they are identical, the commit is aborted since no changes have been staged.
 4. **Write Objects**:
    - Writes the compressed Tree object into the database.

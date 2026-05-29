@@ -286,3 +286,48 @@ func TestFullWorkflow_CommitWithNewFile(t *testing.T) {
 		t.Errorf("Expected 2 entries in index, got %d", len(entries))
 	}
 }
+
+func TestFullWorkflow_DeletionCommit(t *testing.T) {
+	repo := testutils.SetupTestRepo(t)
+
+	originalWD, _ := os.Getwd()
+	os.Chdir(repo)
+	defer os.Chdir(originalWD)
+
+	// 1. Add file and commit
+	filePath := testutils.WriteTestFile(t, repo, "file.txt", "content")
+	if err := purrCommands.AddPurrFiles("."); err != nil {
+		t.Fatalf("First add failed: %v", err)
+	}
+	if err := purrCommands.CommitPurrFiles(repo, "First commit", "Test User", "test@example.com"); err != nil {
+		t.Fatalf("First commit failed: %v", err)
+	}
+	firstHead, _ := utils.GetHEADCommit(repo)
+
+	// 2. Delete file, add and commit
+	os.Remove(filePath)
+	if err := purrCommands.AddPurrFiles("."); err != nil {
+		t.Fatalf("Second add failed: %v", err)
+	}
+	if err := purrCommands.CommitPurrFiles(repo, "Second commit", "Test User", "test@example.com"); err != nil {
+		t.Fatalf("Second commit failed: %v", err)
+	}
+	secondHead, _ := utils.GetHEADCommit(repo)
+
+	if firstHead == secondHead {
+		t.Fatalf("Commit hashes identical; deletion was not recorded")
+	}
+
+	// 3. Verify Tree hash of the second commit represents an empty tree
+	treeHash, err := utils.GetCommitTreeHash(repo, secondHead)
+	if err != nil {
+		t.Fatalf("Failed to read second commit tree hash: %v", err)
+	}
+
+	// Let's compute what an empty tree hash should be
+	emptyTreeHash, _ := utils.ComputeTreeSHA1(repo, []*utils.TreeEntries{})
+	
+	if treeHash != emptyTreeHash {
+		t.Errorf("Expected second commit to have empty tree hash %q, got %q", emptyTreeHash, treeHash)
+	}
+}

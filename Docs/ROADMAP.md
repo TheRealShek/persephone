@@ -9,8 +9,8 @@ This document tracks historical development goals, critical security and structu
 Our primary Phase 1 objective was to bootstrap the VCS structure, staging index, and basic snapshot storage.
 
 - **On-Disk Layout**: Configured `.purr/` directory with `objects/`, `refs/`, `index`, and `HEAD`.
-- **Concurrent Staging (`purr add`)**: Bounded worker goroutine pools for concurrent zlib compression and hash computation.
-- **Atomic Snapshots (`purr commit`)**: Created tree and commit object serialization, saving snapshots as content-addressable blobs.
+- **Concurrent Staging (`purr add`)**: Bounded worker goroutine pools for concurrent zlib compression and hash computation. Tracks file deletions and gracefully handles missing files.
+- **Atomic Snapshots (`purr commit`)**: Recursive tree and commit object serialization, saving snapshots as content-addressable blobs. Robust error propagation prevents silent staging and zlib compression failures.
 - **Basic Configuration**: Implemented global `~/.purrconfig` parsing.
 
 ---
@@ -37,19 +37,12 @@ A comprehensive systems audit performed on 2026-05-28 identified critical bugs, 
 
 ### 2.2 High Severity (Correctness & Logic)
 
-*   **[H1] Flat Tree Structure (No nesting)**
-    *   *Issue*: Files like `src/pkg/main.go` are indexed flat instead of producing three nested trees (root → `src` → `pkg` → blob).
-    *   *Fix*: Rebuild the recursive tree builder bottom-up, referencing subtrees with `040000` modes.
-*   **[H2] Silent Staging Failures**
-    *   *Issue*: Staging functions swallow index read errors, which risks rewriting corrupted indexes from empty slates.
-    *   *Fix*: Return all read/write errors explicitly up to Cobra CLI.
 *   **[H3] Unreliable ModTime Checks**
     *   *Issue*: Change detection only relies on file modification times, which copy/archive actions can easily bypass or spoof.
     *   *Fix*: Compare both `ModTime` and file `Size` as first-pass heuristics.
 
 ### 2.3 Medium & Low Severity (Design Debt)
 
-*   **[M1] Missing Delete Tracking**: Standard walks only stage existing files; if a staged file is deleted, it is never removed from the index (requires `purr rm`).
 *   **[M2] Divergent Index Format**: Bitfield packing of path lengths and stage values differs from Git's standard `DIRC` layout.
 *   **[L1] SHA-1 Cryptographic Collisions**: Document the migration roadmap to SHA-256 for commit hashes.
 

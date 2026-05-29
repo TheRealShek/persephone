@@ -349,3 +349,69 @@ func TestAddAllFiles_BlobObjectCreated(t *testing.T) {
 		t.Errorf("Blob object was not created at %s", objPath)
 	}
 }
+
+func TestAddAllFiles_DetectsDeletions(t *testing.T) {
+	repo := testutils.SetupTestRepo(t)
+	filePath := testutils.WriteTestFile(t, repo, "file.txt", "data")
+
+	originalWD, _ := os.Getwd()
+	os.Chdir(repo)
+	defer os.Chdir(originalWD)
+
+	if err := purrCommands.AddPurrFiles("."); err != nil {
+		t.Fatalf("First add failed: %v", err)
+	}
+
+	// Verify it's in the index
+	entries, _ := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	if len(entries) != 1 {
+		t.Fatalf("Expected 1 entry, got %d", len(entries))
+	}
+
+	// Delete from disk
+	os.Remove(filePath)
+
+	// Add again
+	if err := purrCommands.AddPurrFiles("."); err != nil {
+		t.Fatalf("Second add failed: %v", err)
+	}
+
+	// Verify index is now empty
+	entries, _ = utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	if len(entries) != 0 {
+		t.Errorf("Expected 0 entries after deletion, got %d", len(entries))
+	}
+}
+
+func TestAddSpecificFiles_UnstageDeletedFile(t *testing.T) {
+	repo := testutils.SetupTestRepo(t)
+	filePath := testutils.WriteTestFile(t, repo, "file.txt", "data")
+
+	originalWD, _ := os.Getwd()
+	os.Chdir(repo)
+	defer os.Chdir(originalWD)
+
+	if err := purrCommands.AddPurrFiles("file.txt"); err != nil {
+		t.Fatalf("First add failed: %v", err)
+	}
+
+	// Verify it's in the index
+	entries, _ := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	if len(entries) != 1 {
+		t.Fatalf("Expected 1 entry, got %d", len(entries))
+	}
+
+	// Delete from disk
+	os.Remove(filePath)
+
+	// Add the specific file again
+	if err := purrCommands.AddPurrFiles("file.txt"); err != nil {
+		t.Fatalf("Second add failed: %v", err)
+	}
+
+	// Verify index is now empty
+	entries, _ = utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	if len(entries) != 0 {
+		t.Errorf("Expected 0 entries after specific deletion, got %d", len(entries))
+	}
+}
