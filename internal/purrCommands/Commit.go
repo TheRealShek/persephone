@@ -56,6 +56,11 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read parent commit: %w", err)
 	}
+
+	if parentHash == "" && len(entries) == 0 {
+		return fmt.Errorf("nothing to commit (create/copy files and use \"purr add\" to track)")
+	}
+
 	if parentHash != "" {
 		parentTreeHash, err := utils.GetCommitTreeHash(path, parentHash)
 		if err != nil {
@@ -128,9 +133,7 @@ func getTreeEntries(path string) ([]*utils.TreeEntries, error) {
 		return nil, fmt.Errorf("failed to read index: %w", err)
 	}
 
-	if len(index) == 0 {
-		return nil, fmt.Errorf("no changes staged for commit")
-	}
+
 
 	var entries []*utils.TreeEntries
 	for _, indexEntry := range index {

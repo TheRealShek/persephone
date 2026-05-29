@@ -17,7 +17,7 @@ The test suite is built strictly using Go's native testing framework (`testing`)
 To execute the entire test suite across all packages (Unit, Integration, and E2E):
 
 ```bash
-go test ./...
+go test -race ./...
 ```
 
 For verbose output (showing every test case name):

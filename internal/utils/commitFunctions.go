@@ -24,7 +24,7 @@ import (
 //  - The whole content is prepended with the header "tree {size}\x00".
 func BuildTreeObject(rootDir string, entries []*TreeEntries) ([]byte, error) {
 	if len(entries) == 0 {
-		return nil, fmt.Errorf("no entries to create tree for")
+		return []byte("tree 0\x00"), nil
 	}
 
 	// Group entries by their top-level directory component
@@ -201,41 +201,6 @@ func BuildCommitObject(commit *CommitObj) ([]byte, error) {
 	return commitObj, nil
 }
 
-// GetParentCommit resolves the commit hash of the current branch pointed to by HEAD.
-// It follows HEAD:
-//  1. If HEAD points to a symbolic ref (e.g. "ref: refs/heads/main"), it reads that branch's ref file.
-//  2. If the branch file exists, its contents are returned as the parent commit hash.
-//  3. If HEAD holds a direct commit SHA-1 (detached state), it returns that SHA-1.
-//  4. If no commits exist yet, it returns an empty string, signifying the next commit is the repository root.
-func GetParentCommit(repoPath string) (string, error) {
-	headPath := filepath.Join(repoPath, ".purr", "HEAD")
-	if _, err := os.Stat(headPath); os.IsNotExist(err) {
-		return "", nil // HEAD doesn't exist yet (uninitialized repo state)
-	}
-
-	headContent, err := os.ReadFile(headPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read HEAD: %w", err)
-	}
-
-	headStr := strings.TrimSpace(string(headContent))
-
-	// Follow symbolic reference to find branch pointer
-	if strings.HasPrefix(headStr, "ref: ") {
-		refPath := strings.TrimPrefix(headStr, "ref: ")
-		branchPath := filepath.Join(repoPath, ".purr", refPath)
-
-		parentSHA, err := os.ReadFile(branchPath)
-		if err != nil {
-			return "", nil // Branch ref is not written yet (first commit on main)
-		}
-
-		return strings.TrimSpace(string(parentSHA)), nil
-	}
-
-	// Detached HEAD holds a direct SHA-1 hash
-	return headStr, nil
-}
 
 // UpdateBranchRef updates the active branch's reference file with the newly created commit's SHA-1.
 // By writing the 40-character commit hash followed by a newline into `.purr/refs/heads/<branch>`,

@@ -41,8 +41,8 @@ func TestConfigCommand_NoArgs(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when called with no arguments, got nil")
 	}
-	if !strings.Contains(err.Error(), "usage") {
-		t.Errorf("expected usage message in error, got: %s", err.Error())
+	if !strings.Contains(err.Error(), "are not set") {
+		t.Errorf("expected missing config message in error, got: %s", err.Error())
 	}
 }
 

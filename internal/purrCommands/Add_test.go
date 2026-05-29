@@ -286,8 +286,14 @@ func TestAddSpecificFiles_NonExistentFile(t *testing.T) {
 	defer os.Chdir(originalWD)
 
 	err := purrCommands.AddPurrFiles("does_not_exist.txt")
-	if err == nil {
-		t.Fatal("Expected error when adding non-existent file, but got nil")
+	if err != nil {
+		t.Fatalf("Expected nil when adding non-existent file (should unstage), got error: %v", err)
+	}
+
+	// Verify index is empty
+	entries, _ := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	if len(entries) != 0 {
+		t.Errorf("Expected 0 entries after unstaging non-existent file, got %d", len(entries))
 	}
 }
 

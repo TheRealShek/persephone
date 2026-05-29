@@ -320,9 +320,12 @@ func TestGetHEADCommit_NoHEAD(t *testing.T) {
 	root := t.TempDir()
 	// Don't create .purr/HEAD at all
 
-	_, err := GetHEADCommit(root)
-	if err == nil {
-		t.Fatal("GetHEADCommit() expected error when HEAD is missing, got nil")
+	hash, err := GetHEADCommit(root)
+	if err != nil {
+		t.Fatalf("GetHEADCommit() unexpected error when HEAD is missing: %v", err)
+	}
+	if hash != "" {
+		t.Errorf("expected empty string for missing HEAD, got %q", hash)
 	}
 }
 

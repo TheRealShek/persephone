@@ -210,9 +210,13 @@ func TestComputeTreeSHA1_DifferentEntries_DifferentHash(t *testing.T) {
 	}
 }
 
-func TestComputeTreeSHA1_EmptyEntries_Error(t *testing.T) {
-	_, err := ComputeTreeSHA1(".", []*TreeEntries{})
-	if err == nil {
-		t.Errorf("expected error for empty entries, got nil")
+func TestComputeTreeSHA1_EmptyEntries(t *testing.T) {
+	hash, err := ComputeTreeSHA1(".", []*TreeEntries{})
+	if err != nil {
+		t.Fatalf("unexpected error for empty entries: %v", err)
+	}
+	expectedHash := "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+	if hash != expectedHash {
+		t.Errorf("expected empty tree hash %q, got %q", expectedHash, hash)
 	}
 }

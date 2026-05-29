@@ -102,6 +102,9 @@ func GetHEADCommit(rootDir string) (string, error) {
 	headPath := filepath.Join(rootDir, ".purr", "HEAD")
 	content, err := os.ReadFile(headPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
 		return "", err
 	}
 	ref := strings.TrimSpace(string(content))
@@ -111,6 +114,9 @@ func GetHEADCommit(rootDir string) (string, error) {
 		branchPath := filepath.Join(rootDir, ".purr", branchRef)
 		hash, err := os.ReadFile(branchPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				return "", nil
+			}
 			return "", err
 		}
 		return strings.TrimSpace(string(hash)), nil

@@ -116,8 +116,8 @@ func TestCommitPurrFiles_NothingStaged(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when nothing staged, got nil")
 	}
-	if !strings.Contains(err.Error(), "no changes staged") {
-		t.Errorf("expected 'no changes staged' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "nothing to commit") {
+		t.Errorf("expected 'nothing to commit' in error, got: %v", err)
 	}
 }
 

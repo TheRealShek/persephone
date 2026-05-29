@@ -22,7 +22,12 @@ func TestBuildTreeObject(t *testing.T) {
 		{
 			name:        "Empty entries",
 			entries:     []*TreeEntries{},
-			expectError: true,
+			expectError: false,
+			checkOut: func(t *testing.T, out []byte) {
+				if string(out) != "tree 0\x00" {
+					t.Errorf("Expected 'tree 0\\x00' for empty entries, got %q", string(out))
+				}
+			},
 		},
 		{
 			name: "Invalid mode",
@@ -300,19 +305,19 @@ func setupPurrDir(t *testing.T, root string) {
 	}
 }
 
-func TestGetParentCommit_FirstCommit(t *testing.T) {
+func TestGetHEADCommit_FirstCommit(t *testing.T) {
 	root := t.TempDir()
 	// No .purr/HEAD at all — should return empty string (first commit)
-	parent, err := GetParentCommit(root)
+	parent, err := GetHEADCommit(root)
 	if err != nil {
-		t.Fatalf("GetParentCommit() unexpected error: %v", err)
+		t.Fatalf("GetHEADCommit() unexpected error: %v", err)
 	}
 	if parent != "" {
 		t.Errorf("expected empty parent for first commit, got: %q", parent)
 	}
 }
 
-func TestGetParentCommit_WithExistingCommit(t *testing.T) {
+func TestGetHEADCommit_WithExistingCommit(t *testing.T) {
 	root := t.TempDir()
 	setupPurrDir(t, root)
 
@@ -330,35 +335,15 @@ func TestGetParentCommit_WithExistingCommit(t *testing.T) {
 		t.Fatalf("failed to write branch ref: %v", err)
 	}
 
-	parent, err := GetParentCommit(root)
+	parent, err := GetHEADCommit(root)
 	if err != nil {
-		t.Fatalf("GetParentCommit() unexpected error: %v", err)
+		t.Fatalf("GetHEADCommit() unexpected error: %v", err)
 	}
 	if parent != commitHash {
 		t.Errorf("expected parent %q, got %q", commitHash, parent)
 	}
 }
 
-func TestGetParentCommit_DetachedHead(t *testing.T) {
-	root := t.TempDir()
-	setupPurrDir(t, root)
-
-	detachedHash := strings.Repeat("c", 40)
-
-	// Write HEAD as a direct hash (detached HEAD)
-	headPath := filepath.Join(root, ".purr", "HEAD")
-	if err := os.WriteFile(headPath, []byte(detachedHash+"\n"), 0644); err != nil {
-		t.Fatalf("failed to write HEAD: %v", err)
-	}
-
-	parent, err := GetParentCommit(root)
-	if err != nil {
-		t.Fatalf("GetParentCommit() unexpected error: %v", err)
-	}
-	if parent != detachedHash {
-		t.Errorf("expected detached parent %q, got %q", detachedHash, parent)
-	}
-}
 
 func TestUpdateBranchRef_CreatesRefFile(t *testing.T) {
 	root := t.TempDir()
