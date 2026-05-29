@@ -1,43 +1,142 @@
+# ==========================================
+# Persephone (.gitignore)
+# Comprehensive VCS Git Ignore Rules
+# ==========================================
 
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
+# ------------------------------------------
+# Persephone VCS Database & Temporary Repos
+# ------------------------------------------
+# Ignore the custom .purr database directory globally (created by purr init)
+.purr/
+**/.purr/
+
+# Ignore any local test repositories or playground environments
+test-repo/
+test-home/
+test-*/
+playground-*/
+temp-repo*/
+
+# ------------------------------------------
+# Go-Specific Rules
+# ------------------------------------------
 # Binaries for programs and plugins
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-.antigravitycli
-.gomodcache
-.home
+
+# Compiled purr binaries at any location
 purr
-TUTOR.md
+/purr
+/purr.exe
+**/purr
 
-# Test binary, built with `go test -c`
+# Go module/toolchain/build caches
+.gocache/
+.gomodcache/
+.gopath/
+.home/
+
+# Test binaries and execution artifacts
 *.test
-
-# Code coverage profiles and other test artifacts
 *.out
 coverage.*
 *.coverprofile
 profile.cov
+*.prof
+*.test.log
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
+# Go workspace and lock files
 go.work
 go.work.sum
 
-# env file
+# Dependency directories (prefer go.sum/mod for dependency tracking)
+vendor/
+
+# ------------------------------------------
+# AI Agents & Scratchpad Files
+# ------------------------------------------
+# Avoid uploading model / agent scratchpads and workspace temp configs
+.antigravitycli
+.antigravity/
+.gemini/
+.anthropic/
+.cursor/
+.copilot/
+scratch/
+**/scratch/
+TUTOR.md
+walkthrough.md
+task.md
+implementation_plan.md
+
+# ------------------------------------------
+# Environment & Secrets
+# ------------------------------------------
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# ------------------------------------------
+# IDEs & Editor Configuration
+# ------------------------------------------
+# VS Code
+.vscode/
+*.code-workspace
 
-# Local build and cache
-.gocache/
-.gopath/
+# JetBrains (GoLand, IntelliJ)
+.idea/
+
+# Eclipse
+.metadata/
+.project
+.classpath
+.settings/
+
+# Vim / Emacs swap and backup files
+*~
+*.swp
+*.swo
+.viminfo
+\#*\#
+.\#*
+
+# ------------------------------------------
+# Operating System & System Cache
+# ------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.Spotlight-V100
+.Trashes
+VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ------------------------------------------
+# Temporary & Log files
+# ------------------------------------------
+*.log
+logs/
+log/
 tmp/
+temp/

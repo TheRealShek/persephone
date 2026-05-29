@@ -1,5 +1,5 @@
 # Persephone (purr)
-> *A concurrent, experimental reimagining of Git in Go.*
+> *What if Git was reborn in Go, loved concurrency, and faster than classic Git?*
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](#)
 [![Go Version](https://img.shields.io/badge/go-1.25+-blue)](#)
@@ -9,20 +9,22 @@
 
 ## About the Project
 
-**Git is legendary, but it's also aging.** 
-The software landscape has evolved dramatically with the advent of SSDs, CI/CD pipelines, massive monorepos, and highly concurrent workloads. Yet, Git still behaves like a CLI tool from 2005. 
+**Git is legendary, but it's also aging.**
+The software landscape has evolved dramatically with the advent of SSDs, CI/CD pipelines, massive monorepos, and highly concurrent workloads. Yet, Git still behaves like a CLI tool from 2005.
 
 Persephone (CLI tool `purr`) is an experimental lab exploring a simple question: *"What if we rebuilt Git with a 2025-first mindset?"*
 
 **Core Tenets:**
 - **Concurrency First:** Designed from the ground up to leverage Go's goroutines for blazing-fast operations (e.g., parallel file hashing).
 - **Modern Storage:** Exploring modern storage backends beyond flat-file layouts.
-- **Premium UX:** Gorgeous, semantic CLI outputs utilizing `lipgloss`.
-- **Sacred-Cow-Free:** An uninhibited sandbox to test wild ideas and break assumptions.
+- **Beautiful UX:** Semantic CLI output via lipgloss.
+- **Extensible Design:** Built with Go interfaces and JSON payloads to make tooling, metadata parsing, and extensions trivial.
 
-> **Disclaimer:** This is a personal experimental project. Originally created in collaboration with [Chandranil Bakshi](https://github.com/chandranilbakshi). Since they are no longer working on it, I am continuing the project here. The original repository is available at [chandranilbakshi/persephone](https://github.com/chandranilbakshi/persephone).
-> 
-> **No PRs. No contributions. Don’t ask.**
+---
+
+## Demo
+
+![Persephone CLI Demo](assets/demo.gif)
 
 ---
 
@@ -35,7 +37,7 @@ The foundation of the VCS is being laid down. Here is the current command suppor
 | `purr init` | Initializes a new repository | Works (Sets up `.purr` database) |
 | `purr config` | Get and set global options | Works (Global JSON config) |
 | `purr add` | Stages files into the index | Works (Concurrent hashing, skip unchanged) |
-| `purr ls` | Shows staged files | Works (Premium semantic output) |
+| `purr ls` | Shows staged files | Works (formatted table, short hashes) |
 | `purr commit` | Records changes | Works (JSON commit objects, SHA-1) |
 
 > *Note: Everything else (branch, merge, remote, log, diff, etc.) is currently **not implemented**.*
@@ -46,20 +48,27 @@ The foundation of the VCS is being laid down. Here is the current command suppor
 
 *(No guarantees — this is a lab!)*
 
-- **Alternative Storage:** Storing blobs/trees/commits in Badger/Pebble instead of a flat `.purr/objects` structure.
+### Near-term
 - **Modern Metadata:** Using JSON or ProtoBuf for commit metadata.
-- **Semantic Merging:** AST-based merge engine to understand actual code structure.
 - **Extensibility:** A robust plugin interface via Go interfaces.
+- **Visualizations:** `purr log` with scrollable TUI.
+
+### Long-term
+- **Alternative Storage:** Storing blobs/trees/commits in Badger/Pebble instead of a flat `.purr/objects` structure.
+- **Semantic Merging:** AST-based merge engine to understand actual code structure.
 - **Distributed Sync:** Real peer-to-peer sync using IPFS/libp2p.
-- **Visualizations:** Advanced TUI and visual graph representations.
 - **Security:** Optional encryption and Ed25519 commit signing out-of-the-box.
 
 ---
 
-## Status
+## ⚠️ Status & Disclaimer
 
 **This is a prototype.**
 It is built to learn, invent, and question assumptions. It is **not** production-ready.
 
-- If you want a stable, battle-tested DVCS: **use Git**.
-- If you want to explore what the *next* DVCS could look like: **explore Persephone**.
+> **Disclaimer:** This is a personal experimental project, originally created in collaboration with [Chandranil Bakshi](https://github.com/chandranilbakshi) and now continued here.
+>
+> **No PRs. No contributions. Don’t ask.**
+
+If you want a stable, battle-tested DVCS: **use Git**.
+If you want to explore what the *next* DVCS could look like: **explore Persephone**.
