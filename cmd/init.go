@@ -17,11 +17,15 @@ var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Init repository",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := purrCommands.InitPurrDirectories(".")
+		isNewRepo, err := purrCommands.InitPurrDirectories(".")
 		if err != nil {
 			return err
 		}
-		fmt.Println(ui.Successf("Initialized empty repository"))
+		if isNewRepo {
+			fmt.Println(ui.Successf("Initialized empty repository"))
+		} else {
+			fmt.Println(ui.Successf("Reinitialized existing repository"))
+		}
 		return nil
 	},
 }

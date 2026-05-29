@@ -38,6 +38,7 @@ purr
 .gomodcache/
 .gopath/
 .home/
+.go*
 
 # Test binaries and execution artifacts
 *.test

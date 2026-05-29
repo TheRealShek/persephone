@@ -16,7 +16,23 @@ import (
 //    by joining the remaining CLI arguments with spaces for convenience.
 func ConfigCommand(args ...string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: purr config <key> [<value>]\n  Example: purr config user.name \"John Doe\"")
+		config, err := utils.ReadConfig()
+		if err != nil {
+			return fmt.Errorf("usage: purr config <key> [<value>]\n  Example: purr config user.name \"John Doe\"")
+		}
+		missingName := config.UserName == ""
+		missingEmail := config.UserEmail == ""
+
+		if missingName && missingEmail {
+			return fmt.Errorf("user.name and user.email are not set — run:\npurr config user.name <value> && purr config user.email <value>")
+		} else if missingName {
+			return fmt.Errorf("user.name is not set — run:\npurr config user.name <value>")
+		} else if missingEmail {
+			return fmt.Errorf("user.email is not set — run:\npurr config user.email <value>")
+		}
+		
+		fmt.Printf("user.name = %s\nuser.email = %s\n", config.UserName, config.UserEmail)
+		return nil
 	}
 
 	configKey := args[0]
@@ -62,7 +78,7 @@ func readConfig(key string) error {
 func writeConfig(key, value string) error {
 	config, err := utils.ReadConfig()
 	if err != nil {
-		config = &utils.PurrConfig{}
+		return fmt.Errorf("failed to read config: %w", err)
 	}
 
 	switch key {

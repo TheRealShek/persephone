@@ -5,6 +5,7 @@ import (
 	"Persephone/internal/utils"
 	"bytes"
 	"compress/zlib"
+	"crypto/sha1"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,20 +29,22 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 		return fmt.Errorf("failed to get tree entries: %w", err)
 	}
 
-	treeContent, err := utils.BuildTreeObject(entries)
+	treeContent, err := utils.BuildTreeObject(path, entries)
 	if err != nil {
 		return fmt.Errorf("failed to build tree object: %w", err)
 	}
 
-	treeHash, err := utils.ComputeTreeSHA1(entries)
-	if err != nil {
-		return fmt.Errorf("failed to create tree object: %w", err)
-	}
+	sha := sha1.Sum(treeContent)
+	treeHash := fmt.Sprintf("%x", sha[:])
 
 	var compressed bytes.Buffer
 	w := zlib.NewWriter(&compressed)
-	w.Write(treeContent)
-	w.Close()
+	if _, err := w.Write(treeContent); err != nil {
+		return fmt.Errorf("failed to compress tree object: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("failed to finalize tree compression: %w", err)
+	}
 
 	err = utils.StoreObject(path, treeHash, compressed.Bytes())
 	if err != nil {
@@ -50,9 +53,15 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 
 	// Prevent empty commits: check if tree hash matches parent tree hash
 	parentHash, err := utils.GetHEADCommit(path)
-	if err == nil && parentHash != "" {
+	if err != nil {
+		return fmt.Errorf("failed to read parent commit: %w", err)
+	}
+	if parentHash != "" {
 		parentTreeHash, err := utils.GetCommitTreeHash(path, parentHash)
-		if err == nil && parentTreeHash == treeHash {
+		if err != nil {
+			return fmt.Errorf("failed to read parent tree: %w", err)
+		}
+		if parentTreeHash == treeHash {
 			return fmt.Errorf("nothing to commit, working tree clean")
 		}
 	}
@@ -83,8 +92,12 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 
 	compressed.Reset()
 	w = zlib.NewWriter(&compressed)
-	w.Write(commitObj)
-	w.Close()
+	if _, err := w.Write(commitObj); err != nil {
+		return fmt.Errorf("failed to compress commit object: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("failed to finalize commit compression: %w", err)
+	}
 
 	err = utils.StoreObject(path, commitHash, compressed.Bytes())
 	if err != nil {

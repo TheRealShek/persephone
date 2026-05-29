@@ -62,7 +62,10 @@ func AddPurrFiles(arg ...string) error {
 //     to a slice and sort it lexicographically by path before writing to disk. This ensures index updates
 //     generate byte-for-byte identical binaries across executions.
 func addAllPurrFiles(path string) error {
-	IndexEntries, _ := utils.ReadIndex(filepath.Join(path, ".purr", "index"))
+	IndexEntries, err := utils.ReadIndex(filepath.Join(path, ".purr", "index"))
+	if err != nil {
+		return fmt.Errorf("failed to read index: %w", err)
+	}
 
 	indexMap := make(map[string]*utils.IndexEntry)
 	for i := range IndexEntries {
@@ -75,6 +78,7 @@ func addAllPurrFiles(path string) error {
 	var mu sync.Mutex
 	var processingErrs []error
 	var addedCount, skippedCount int
+	walkedMap := make(map[string]bool)
 
 	utils.WalkAndAddFiles(path, func(filePath string) error {
 		wg.Add(1)
@@ -98,6 +102,10 @@ func addAllPurrFiles(path string) error {
 				mu.Unlock()
 				return
 			}
+
+			mu.Lock()
+			walkedMap[relPath] = true
+			mu.Unlock()
 
 			// Stat cache comparison: skip hashing if Mtime is unchanged
 			mu.Lock()
@@ -138,6 +146,12 @@ func addAllPurrFiles(path string) error {
 
 	if len(processingErrs) > 0 {
 		return fmt.Errorf("purr add failed: %w", errors.Join(processingErrs...))
+	}
+
+	for key := range indexMap {
+		if !walkedMap[key] {
+			delete(indexMap, key)
+		}
 	}
 
 	var updatedEntries []utils.IndexEntry
@@ -186,7 +200,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 		indexMap[IndexEntries[i].Path] = &IndexEntries[i]
 	}
 
-	var addedCount, skippedCount int
+	var addedCount, skippedCount, removedCount int
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	var processingErrs []error
@@ -227,6 +241,19 @@ func addSpecificPurrFiles(path string, files []string) error {
 
 			fileInfo, err := os.Stat(absPath)
 			if err != nil {
+				if os.IsNotExist(err) {
+					relPath, relErr := filepath.Rel(path, absPath)
+					if relErr == nil {
+						mu.Lock()
+						if _, exists := indexMap[relPath]; exists {
+							delete(indexMap, relPath)
+							fmt.Printf("removed %s from index\n", relPath)
+							removedCount++
+						}
+						mu.Unlock()
+					}
+					return
+				}
 				mu.Lock()
 				processingErrs = append(processingErrs, fmt.Errorf("cannot stat '%s': %w", fp, err))
 				mu.Unlock()
@@ -298,7 +325,7 @@ func addSpecificPurrFiles(path string, files []string) error {
 		return fmt.Errorf("purr add failed: %w", errors.Join(processingErrs...))
 	}
 
-	if addedCount > 0 {
+	if addedCount > 0 || removedCount > 0 {
 		var updatedEntries []utils.IndexEntry
 		for _, entry := range indexMap {
 			updatedEntries = append(updatedEntries, *entry)
@@ -313,11 +340,15 @@ func addSpecificPurrFiles(path string, files []string) error {
 			return fmt.Errorf("failed to write index: %w", err)
 		}
 
-		fmt.Printf("\n%s", ui.Successf("Successfully added %d file(s) to index", addedCount))
+		if addedCount > 0 {
+			fmt.Printf("\n%s", ui.Successf("Successfully added %d file(s) to index", addedCount))
+		}
 		if skippedCount > 0 {
 			fmt.Printf(" %s", ui.Metadataf("(%d skipped)", skippedCount))
 		}
-		fmt.Println()
+		if addedCount > 0 || skippedCount > 0 {
+			fmt.Println()
+		}
 	} else {
 		fmt.Println()
 		fmt.Println(ui.Metadata("No files were added to index"))

@@ -35,8 +35,13 @@ func ReadConfig() (*PurrConfig, error) {
 		return nil, err
 	}
 
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	if info, err := os.Stat(configPath); err != nil {
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("failed to stat config file: %w", err)
+		}
 		return &PurrConfig{}, nil
+	} else if info.IsDir() {
+		return nil, fmt.Errorf("config path is a directory: %s", configPath)
 	}
 
 	data, err := os.ReadFile(configPath)
@@ -60,6 +65,10 @@ func WriteConfig(config *PurrConfig) error {
 	configPath, err := GetConfigPath()
 	if err != nil {
 		return err
+	}
+
+	if info, err := os.Stat(configPath); err == nil && info.IsDir() {
+		return fmt.Errorf("config path is a directory: %s", configPath)
 	}
 
 	data, err := json.MarshalIndent(config, "", "  ")

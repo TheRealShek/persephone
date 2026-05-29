@@ -13,7 +13,7 @@ func SetupTestRepo(t *testing.T) string {
 	t.Helper()
 	repo := t.TempDir()
 
-	err := purrCommands.InitPurrDirectories(repo)
+	_, err := purrCommands.InitPurrDirectories(repo)
 	if err != nil {
 		t.Fatalf("failed to init purr repo: %v", err)
 	}

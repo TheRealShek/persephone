@@ -62,7 +62,7 @@ func TestBuildTreeObject(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, err := BuildTreeObject(tt.entries)
+			out, err := BuildTreeObject(".", tt.entries)
 			if (err != nil) != tt.expectError {
 				t.Errorf("BuildTreeObject() error = %v, expectError %v", err, tt.expectError)
 				return
@@ -177,7 +177,7 @@ func TestBuildTreeObject_EmptyNameOrMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := BuildTreeObject(tt.entries)
+			_, err := BuildTreeObject(".", tt.entries)
 			if err == nil {
 				t.Errorf("expected error for entry with empty mode or name, got nil")
 			}
@@ -190,7 +190,7 @@ func TestBuildTreeObject_ExecutableMode(t *testing.T) {
 		{Mode: "100755", Name: "script.sh", Sha1Hex: strings.Repeat("c", 40)},
 	}
 
-	out, err := BuildTreeObject(entries)
+	out, err := BuildTreeObject(".", entries)
 	if err != nil {
 		t.Fatalf("BuildTreeObject() unexpected error for mode 100755: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestBuildTreeObject_DirectoryMode(t *testing.T) {
 		{Mode: "040000", Name: "subdir", IsTree: true, Sha1Hex: strings.Repeat("d", 40)},
 	}
 
-	out, err := BuildTreeObject(entries)
+	out, err := BuildTreeObject(".", entries)
 	if err != nil {
 		t.Fatalf("BuildTreeObject() unexpected error for mode 040000: %v", err)
 	}

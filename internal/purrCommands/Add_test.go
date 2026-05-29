@@ -71,7 +71,7 @@ func TestAddAllPurrFiles_AbortsOnFailure_PreservesIndex(t *testing.T) {
 	}
 
 	// Verify the error mentions "purr add failed"
-	if err != nil && err.Error()[:15] != "purr add failed" {
+	if err.Error()[:15] != "purr add failed" {
 		t.Errorf("Expected error to start with 'purr add failed', got: %v", err)
 	}
 

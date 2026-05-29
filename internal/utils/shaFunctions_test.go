@@ -161,7 +161,7 @@ func TestComputeTreeSHA1_DeterministicHash(t *testing.T) {
 		{Mode: "100644", Name: "file2.txt", Sha1Hex: strings.Repeat("b", 40)},
 	}
 
-	hash1, err := ComputeTreeSHA1(entries)
+	hash1, err := ComputeTreeSHA1(".", entries)
 	if err != nil {
 		t.Fatalf("first ComputeTreeSHA1() error: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestComputeTreeSHA1_DeterministicHash(t *testing.T) {
 		{Mode: "100644", Name: "file2.txt", Sha1Hex: strings.Repeat("b", 40)},
 	}
 
-	hash2, err := ComputeTreeSHA1(entries2)
+	hash2, err := ComputeTreeSHA1(".", entries2)
 	if err != nil {
 		t.Fatalf("second ComputeTreeSHA1() error: %v", err)
 	}
@@ -195,12 +195,12 @@ func TestComputeTreeSHA1_DifferentEntries_DifferentHash(t *testing.T) {
 		{Mode: "100644", Name: "beta.txt", Sha1Hex: strings.Repeat("b", 40)},
 	}
 
-	hashA, err := ComputeTreeSHA1(entriesA)
+	hashA, err := ComputeTreeSHA1(".", entriesA)
 	if err != nil {
 		t.Fatalf("ComputeTreeSHA1(A) error: %v", err)
 	}
 
-	hashB, err := ComputeTreeSHA1(entriesB)
+	hashB, err := ComputeTreeSHA1(".", entriesB)
 	if err != nil {
 		t.Fatalf("ComputeTreeSHA1(B) error: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestComputeTreeSHA1_DifferentEntries_DifferentHash(t *testing.T) {
 }
 
 func TestComputeTreeSHA1_EmptyEntries_Error(t *testing.T) {
-	_, err := ComputeTreeSHA1([]*TreeEntries{})
+	_, err := ComputeTreeSHA1(".", []*TreeEntries{})
 	if err == nil {
 		t.Errorf("expected error for empty entries, got nil")
 	}

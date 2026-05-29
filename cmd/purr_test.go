@@ -17,7 +17,7 @@ func TestFullWorkflow_InitAddCommit(t *testing.T) {
 	repo := t.TempDir()
 
 	// 1. Init
-	err := purrCommands.InitPurrDirectories(repo)
+	_, err := purrCommands.InitPurrDirectories(repo)
 	if err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
@@ -220,12 +220,12 @@ func TestFullWorkflow_InitIdempotent(t *testing.T) {
 	repo := t.TempDir()
 
 	// Init twice should not fail
-	err := purrCommands.InitPurrDirectories(repo)
+	_, err := purrCommands.InitPurrDirectories(repo)
 	if err != nil {
 		t.Fatalf("First init failed: %v", err)
 	}
 
-	err = purrCommands.InitPurrDirectories(repo)
+	_, err = purrCommands.InitPurrDirectories(repo)
 	if err != nil {
 		t.Fatalf("Second init failed: %v", err)
 	}

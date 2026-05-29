@@ -11,7 +11,7 @@ import (
 func TestInitPurrDirectories_CreatesAllDirs(t *testing.T) {
 	base := t.TempDir()
 
-	if err := purrCommands.InitPurrDirectories(base); err != nil {
+	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("InitPurrDirectories() error = %v", err)
 	}
 
@@ -36,7 +36,7 @@ func TestInitPurrDirectories_CreatesAllDirs(t *testing.T) {
 func TestInitPurrDirectories_IndexFileHeader(t *testing.T) {
 	base := t.TempDir()
 
-	if err := purrCommands.InitPurrDirectories(base); err != nil {
+	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("InitPurrDirectories() error = %v", err)
 	}
 
@@ -72,7 +72,7 @@ func TestInitPurrDirectories_IndexFileHeader(t *testing.T) {
 func TestInitPurrDirectories_HEADContent(t *testing.T) {
 	base := t.TempDir()
 
-	if err := purrCommands.InitPurrDirectories(base); err != nil {
+	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("InitPurrDirectories() error = %v", err)
 	}
 
@@ -92,7 +92,7 @@ func TestInitPurrDirectories_Idempotent(t *testing.T) {
 	base := t.TempDir()
 
 	// First call
-	if err := purrCommands.InitPurrDirectories(base); err != nil {
+	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("first InitPurrDirectories() error = %v", err)
 	}
 
@@ -110,7 +110,7 @@ func TestInitPurrDirectories_Idempotent(t *testing.T) {
 	}
 
 	// Second call — should not error
-	if err := purrCommands.InitPurrDirectories(base); err != nil {
+	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("second InitPurrDirectories() error = %v", err)
 	}
 
@@ -148,7 +148,7 @@ func TestInitPurrDirectories_PreservesExistingIndex(t *testing.T) {
 	}
 
 	// Init should NOT overwrite the existing index
-	if err := purrCommands.InitPurrDirectories(base); err != nil {
+	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("InitPurrDirectories() error = %v", err)
 	}
 
@@ -178,7 +178,7 @@ func TestInitPurrDirectories_PreservesExistingHEAD(t *testing.T) {
 	}
 
 	// Init should NOT overwrite the existing HEAD
-	if err := purrCommands.InitPurrDirectories(base); err != nil {
+	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("InitPurrDirectories() error = %v", err)
 	}
 

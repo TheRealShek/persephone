@@ -4,6 +4,7 @@ import (
 	"Persephone/internal/platform"
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -14,8 +15,13 @@ import (
 //  - `.purr/objects`: Stored content-addressed blobs, trees, and commit snapshots compressed with zlib.
 //  - `.purr/refs/heads`: Stored branch pointer files (each contains the 40-char SHA-1 of the tip commit).
 //  - `.purr/logs`: Stored operation logs for eventual reflog capabilities.
-func InitPurrDirectories(basePath string) error {
+func InitPurrDirectories(basePath string) (bool, error) {
 	purrDir := filepath.Join(basePath, ".purr")
+
+	isNewRepo := false
+	if _, err := os.Stat(purrDir); os.IsNotExist(err) {
+		isNewRepo = true
+	}
 
 	dirs := []string{
 		filepath.Join(purrDir, "objects"),
@@ -25,13 +31,13 @@ func InitPurrDirectories(basePath string) error {
 
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
+			return false, err
 		}
 	}
 
 	// Register OS-specific attributes: hides the `.purr` directory on Windows (no-op on Unix/macOS)
 	if err := platform.SetHidden(purrDir); err != nil {
-		return err
+		return false, err
 	}
 
 	// Bootstrap index file:
@@ -39,27 +45,41 @@ func InitPurrDirectories(basePath string) error {
 	// from failing or crashing on an empty or missing file, we seed it immediately with a
 	// valid 12-byte header: magic "DIRC", format version 2, and 0 initial staged entries.
 	indexPath := filepath.Join(purrDir, "index")
-	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+	if info, err := os.Stat(indexPath); err != nil {
+		if !os.IsNotExist(err) {
+			return false, err
+		}
 		var buf bytes.Buffer
 		buf.WriteString("DIRC")
-		binary.Write(&buf, binary.BigEndian, uint32(2))
-		binary.Write(&buf, binary.BigEndian, uint32(0))
+		if err := binary.Write(&buf, binary.BigEndian, uint32(2)); err != nil {
+			return false, err
+		}
+		if err := binary.Write(&buf, binary.BigEndian, uint32(0)); err != nil {
+			return false, err
+		}
 
 		if err := os.WriteFile(indexPath, buf.Bytes(), 0644); err != nil {
-			return err
+			return false, err
 		}
+	} else if info.IsDir() {
+		return false, fmt.Errorf("cannot create index: %s is a directory", indexPath)
 	}
 
 	// Set default active branch:
 	// Point HEAD symbolically to the standard modern branch "refs/heads/main".
 	headPath := filepath.Join(purrDir, "HEAD")
-	if _, err := os.Stat(headPath); os.IsNotExist(err) {
+	if info, err := os.Stat(headPath); err != nil {
+		if !os.IsNotExist(err) {
+			return false, err
+		}
 		headContent := "ref: refs/heads/main\n"
 		if err := os.WriteFile(headPath, []byte(headContent), 0644); err != nil {
-			return err
+			return false, err
 		}
+	} else if info.IsDir() {
+		return false, fmt.Errorf("cannot create HEAD: %s is a directory", headPath)
 	}
 
-	return nil
+	return isNewRepo, nil
 }
 

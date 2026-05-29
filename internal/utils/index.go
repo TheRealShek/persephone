@@ -38,7 +38,14 @@ func ReadIndex(indexPath string) ([]IndexEntry, error) {
 		return nil, fmt.Errorf("invalid index header: expected DIRC, got %s", string(header[:4]))
 	}
 
-	for buf.Len() > 0 {
+	version := binary.BigEndian.Uint32(header[4:8])
+	if version != 2 {
+		return nil, fmt.Errorf("unsupported index version: expected 2, got %d", version)
+	}
+
+	entryCount := binary.BigEndian.Uint32(header[8:12])
+
+	for i := uint32(0); i < entryCount; i++ {
 		var entry IndexEntry
 
 		// Read the 62-byte fixed-size metadata block.
@@ -119,26 +126,52 @@ func WriteIndex(indexPath string, entries []IndexEntry) error {
 
 	// Write 12-byte header
 	buf.WriteString("DIRC")                                    // Magic signature (4 bytes)
-	binary.Write(&buf, binary.BigEndian, uint32(2))            // Version 2 (4 bytes)
-	binary.Write(&buf, binary.BigEndian, uint32(len(entries))) // Entry count (4 bytes)
+	if err := binary.Write(&buf, binary.BigEndian, uint32(2)); err != nil {
+		return err
+	}
+	if err := binary.Write(&buf, binary.BigEndian, uint32(len(entries))); err != nil {
+		return err
+	}
 
 	// Write each entry sequentially
 	for _, entry := range entries {
 		// Write fixed 62-byte metadata block
-		binary.Write(&buf, binary.BigEndian, entry.Ctime.Unix()) // 8 bytes
-		binary.Write(&buf, binary.BigEndian, entry.Mtime.Unix()) // 8 bytes
-		binary.Write(&buf, binary.BigEndian, entry.Dev)          // 4 bytes
-		binary.Write(&buf, binary.BigEndian, entry.Ino)          // 4 bytes
-		binary.Write(&buf, binary.BigEndian, entry.Mode)         // 4 bytes
-		binary.Write(&buf, binary.BigEndian, entry.Uid)          // 4 bytes
-		binary.Write(&buf, binary.BigEndian, entry.Gid)          // 4 bytes
-		binary.Write(&buf, binary.BigEndian, entry.Size)         // 4 bytes
-		binary.Write(&buf, binary.BigEndian, entry.Sha1)         // 20 bytes
-		binary.Write(&buf, binary.BigEndian, entry.Stage)        // 2 bytes
+		if err := binary.Write(&buf, binary.BigEndian, entry.Ctime.Unix()); err != nil {
+			return err
+		}
+		if err := binary.Write(&buf, binary.BigEndian, entry.Mtime.Unix()); err != nil {
+			return err
+		}
+		if err := binary.Write(&buf, binary.BigEndian, entry.Dev); err != nil {
+			return err
+		}
+		if err := binary.Write(&buf, binary.BigEndian, entry.Ino); err != nil {
+			return err
+		}
+		if err := binary.Write(&buf, binary.BigEndian, entry.Mode); err != nil {
+			return err
+		}
+		if err := binary.Write(&buf, binary.BigEndian, entry.Uid); err != nil {
+			return err
+		}
+		if err := binary.Write(&buf, binary.BigEndian, entry.Gid); err != nil {
+			return err
+		}
+		if err := binary.Write(&buf, binary.BigEndian, entry.Size); err != nil {
+			return err
+		}
+		if err := binary.Write(&buf, binary.BigEndian, entry.Sha1); err != nil {
+			return err
+		}
+		if err := binary.Write(&buf, binary.BigEndian, entry.Stage); err != nil {
+			return err
+		}
 
 		// Write path length and data
 		pathBytes := []byte(entry.Path)
-		binary.Write(&buf, binary.BigEndian, uint16(len(pathBytes))) // 2 bytes
+		if err := binary.Write(&buf, binary.BigEndian, uint16(len(pathBytes))); err != nil {
+			return err
+		}
 		buf.Write(pathBytes)
 
 		// Compute and write null-byte padding to satisfy the 8-byte alignment constraint

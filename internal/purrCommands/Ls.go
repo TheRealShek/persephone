@@ -4,6 +4,7 @@ import (
 	"Persephone/internal/ui"
 	"Persephone/internal/utils"
 	"fmt"
+	"os"
 	"path/filepath"
 )
 
@@ -16,7 +17,14 @@ import (
 //    (inodes, device IDs, timestamps, conflict stages, etc.). This acts as a vital tool for VCS maintainers
 //    verifying binary structure alignment, filesystem change-detection, and stat caching correctness.
 func ListFiles(rootDir string, showDebug bool) error {
-	indexPath := filepath.Join(rootDir, ".purr", "index")
+	purrDir := filepath.Join(rootDir, ".purr")
+	if _, err := os.Stat(purrDir); os.IsNotExist(err) {
+		return fmt.Errorf("not a purr repository")
+	} else if err != nil {
+		return err
+	}
+
+	indexPath := filepath.Join(purrDir, "index")
 	entries, err := utils.ReadIndex(indexPath)
 	if err != nil {
 		return fmt.Errorf("failed to read index: %w", err)

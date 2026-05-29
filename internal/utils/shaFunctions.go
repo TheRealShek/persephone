@@ -39,8 +39,12 @@ func WriteBlobWithSHA(rootDir string, filePath string) ([20]byte, error) {
 	// Compress using standard zlib to match Git-compatible storage and optimize disk utilization
 	var compressed bytes.Buffer
 	w := zlib.NewWriter(&compressed)
-	w.Write(blob)
-	w.Close()
+	if _, err := w.Write(blob); err != nil {
+		return [20]byte{}, fmt.Errorf("failed to compress object: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return [20]byte{}, fmt.Errorf("failed to finalize compression: %w", err)
+	}
 
 	// Write compressed object payload to the content-addressable database
 	err = StoreObject(rootDir, hashStr, compressed.Bytes())
@@ -54,8 +58,8 @@ func WriteBlobWithSHA(rootDir string, filePath string) ([20]byte, error) {
 // ComputeTreeSHA1 generates a Git-compatible tree object from staged files and hashes it.
 // It delegates construction to BuildTreeObject to get sorted deterministic binary formatting.
 // The tree SHA-1 represents the direct state of directory hierarchy at the time of commit.
-func ComputeTreeSHA1(entries []*TreeEntries) (string, error) {
-	treeObj, err := BuildTreeObject(entries)
+func ComputeTreeSHA1(rootDir string, entries []*TreeEntries) (string, error) {
+	treeObj, err := BuildTreeObject(rootDir, entries)
 	if err != nil {
 		return "", err
 	}

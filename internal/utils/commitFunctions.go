@@ -22,27 +22,82 @@ import (
 //    (e.g., "src/" sorts after "src.go"), ensuring parent-child folder structures are deterministic.
 //  - Format for each entry: "{mode} {name}\x00{20-byte SHA-1 raw bytes}"
 //  - The whole content is prepended with the header "tree {size}\x00".
-func BuildTreeObject(entries []*TreeEntries) ([]byte, error) {
+func BuildTreeObject(rootDir string, entries []*TreeEntries) ([]byte, error) {
 	if len(entries) == 0 {
 		return nil, fmt.Errorf("no entries to create tree for")
 	}
 
+	// Group entries by their top-level directory component
+	rootFiles := []*TreeEntries{}
+	subDirs := make(map[string][]*TreeEntries)
+
+	for _, entry := range entries {
+		parts := strings.SplitN(entry.Name, string(filepath.Separator), 2)
+		if len(parts) == 1 {
+			rootFiles = append(rootFiles, entry)
+		} else {
+			dirName := parts[0]
+			// Update the name to be relative to the subtree
+			subEntry := &TreeEntries{
+				Name:     parts[1],
+				Filename: entry.Filename,
+				Sha1Hex:  entry.Sha1Hex,
+				IsTree:   entry.IsTree,
+				Mode:     entry.Mode,
+			}
+			subDirs[dirName] = append(subDirs[dirName], subEntry)
+		}
+	}
+
+	// Recursively build subtrees
+	for dirName, subEntries := range subDirs {
+		subTreeObj, err := BuildTreeObject(rootDir, subEntries)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build subtree %s: %w", dirName, err)
+		}
+
+		sha := sha1.Sum(subTreeObj)
+		subTreeHash := fmt.Sprintf("%x", sha[:])
+
+		var compressed bytes.Buffer
+		w := zlib.NewWriter(&compressed)
+		if _, err := w.Write(subTreeObj); err != nil {
+			return nil, fmt.Errorf("failed to compress subtree %s: %w", dirName, err)
+		}
+		if err := w.Close(); err != nil {
+			return nil, fmt.Errorf("failed to finalize subtree %s: %w", dirName, err)
+		}
+
+		if err := StoreObject(rootDir, subTreeHash, compressed.Bytes()); err != nil {
+			return nil, fmt.Errorf("failed to store subtree %s: %w", dirName, err)
+		}
+
+		// Add subtree reference to the current tree
+		rootFiles = append(rootFiles, &TreeEntries{
+			Name:     dirName,
+			Filename: dirName,
+			Sha1Hex:  subTreeHash,
+			IsTree:   true,
+			Mode:     "040000",
+		})
+	}
+
 	// Sort entries according to Git's tree-ordering rules:
 	// If it is a directory (sub-tree), we append a virtual "/" for comparison.
-	sort.Slice(entries, func(i, j int) bool {
-		nameI := entries[i].Name
-		nameJ := entries[j].Name
-		if entries[i].IsTree {
+	sort.Slice(rootFiles, func(i, j int) bool {
+		nameI := rootFiles[i].Name
+		nameJ := rootFiles[j].Name
+		if rootFiles[i].IsTree {
 			nameI += "/"
 		}
-		if entries[j].IsTree {
+		if rootFiles[j].IsTree {
 			nameJ += "/"
 		}
 		return nameI < nameJ
 	})
 
 	var treeContent []byte
-	for _, entry := range entries {
+	for _, entry := range rootFiles {
 		if entry.Mode == "" || entry.Name == "" {
 			return nil, fmt.Errorf("invalid entry: mode and name required (got mode='%s', name='%s')", entry.Mode, entry.Name)
 		}
@@ -154,9 +209,13 @@ func BuildCommitObject(commit *CommitObj) ([]byte, error) {
 //  4. If no commits exist yet, it returns an empty string, signifying the next commit is the repository root.
 func GetParentCommit(repoPath string) (string, error) {
 	headPath := filepath.Join(repoPath, ".purr", "HEAD")
+	if _, err := os.Stat(headPath); os.IsNotExist(err) {
+		return "", nil // HEAD doesn't exist yet (uninitialized repo state)
+	}
+
 	headContent, err := os.ReadFile(headPath)
 	if err != nil {
-		return "", nil // HEAD doesn't exist yet (uninitialized repo state)
+		return "", fmt.Errorf("failed to read HEAD: %w", err)
 	}
 
 	headStr := strings.TrimSpace(string(headContent))
