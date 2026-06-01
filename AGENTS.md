@@ -56,11 +56,14 @@ No env vars required. No external services.
 - Chose Cobra over `flag` stdlib — provides subcommand routing, help generation, and flag parsing for `purr init`, `purr add`, etc.
 - `.purr/` directory structure mirrors Git's `.git/` layout — objects stored as zlib-compressed blobs under `objects/XX/YYYYYY...`, staging via binary `index` file, HEAD as plain text ref pointer
 - Concurrency via goroutine worker pool (bounded at `runtime.NumCPU() * 5`) with semaphore channels — applies to `purr add` file hashing and blob writing
-- Index uses a Git-compatible binary format: 12-byte header (`DIRC` magic + version 2 + entry count), followed by serialized `IndexEntry` structs
+- Index uses a Git-inspired binary format: 12-byte header (`DIRC` magic + version 2 + entry count), followed by serialized `IndexEntry` structs. Entry bitfield packing still diverges from Git.
 - User config stored globally at `~/.purrconfig` as JSON (not per-repo)
 - `internal/purrCommands/` contains command logic; `internal/utils/` contains shared types, index I/O, SHA-1 hashing, and commit object helpers — these two packages are intentionally separated; commands import utils but not vice versa
 - `internal/ui/` centralizes all terminal UI components, `lipgloss` styling, and layout formatting. Command packages (`cmd/` and `internal/purrCommands/`) must strictly invoke exported helpers from `ui` rather than defining raw styles or instantiating `lipgloss` directly.
 - Tree objects use Git-compatible recursive formats, supporting nested `040000` sub-tree serialization.
+- Commit objects use Git-compatible plain-text headers and metadata payloads, compressed with zlib under `.purr/objects`
+- `purr log` resolves HEAD and walks the current single-parent commit chain newest-to-oldest; malformed ancestry cycles are rejected
+- Command repeat policy: `init` is create-only; `commit` rejects unchanged trees; `add` and `config` are intentionally repeatable mutations; `ls` and `log` are repeatable inspections
 
 
 ## LAYOUT
@@ -69,16 +72,15 @@ No env vars required. No external services.
 |---|---|
 | `cmd/purr/main.go` | Binary entrypoint — just calls `cmd.Execute()` |
 | `cmd/root.go` | Cobra root command definition and flag setup |
-| `cmd/{init,add,commit,config,ls}.go` | Thin CLI wrappers — each delegates to `internal/purrCommands/` |
-| `internal/purrCommands/` | Core command logic: `Init.go`, `Add.go`, `Commit.go`, `Config.go`, `Ls.go` |
+| `cmd/{init,add,commit,config,ls,log}.go` | Thin CLI wrappers — each delegates to `internal/purrCommands/` |
+| `internal/purrCommands/` | Core command logic: `Init.go`, `Add.go`, `Commit.go`, `Config.go`, `Ls.go`, `Log.go` |
 | `internal/ui/` | All UI components, styles, lipgloss logic, and output formatting |
 | `internal/utils/types.go` | All shared data types: `IndexEntry`, `PurrConfig`, `TreeEntries`, `CommitObj` |
 | `internal/utils/index.go` | Binary index read/write (`ReadIndex`, `WriteIndex`) |
-| `internal/utils/commitFunctions.go` | Tree/commit object building, SHA-1 computation, zlib compression |
+| `internal/utils/commitFunctions.go` | Tree/commit object building and parsing, SHA-1 computation, zlib compression |
 | `internal/utils/shaFunctions.go` | SHA-1 blob hashing (`WriteBlobWithSHA`) |
 | `internal/utils/config.go` | Global config read/write (`~/.purrconfig`) |
 | Docs/ | Design documents: Git internals, limitations, Phase 1 plan, command implementation flows |
-| `Purr Commands Guide` | User-facing command reference (linked from README) |
 
 
 ## CONVENTIONS
@@ -93,7 +95,7 @@ No env vars required. No external services.
 ## GOTCHAS
 
 - **Module name**: The Go module is named `Persephone` (capital P) — imports must use `Persephone/internal/...`, not lowercase
-- **JSON Commits**: Commit objects use JSON serialization (not Git's standard plain-text format) — see `utils.CommitObj` struct. This breaks direct interoperability with some Git tools.
+- **Commit format**: Commit objects use Git-style plain-text serialization. `utils.CommitObj` is the in-memory representation; global user config remains JSON.
 - **Testing nuances**: The test suite covers E2E deletion scenarios and recursive tree building, but always run `make test` and `go test -race ./...` before committing to catch concurrency regressions.
 - **Hidden files**: Both `purr add .` and `purr add <file>` skip files/directories starting with `.` — this is intentional, not a bug
 - **Index header**: The `.purr/index` file must have a valid 12-byte header or `ReadIndex` will fail — `purr init` creates this automatically
@@ -114,7 +116,6 @@ Rule: if a comment does not help a contributor understand the design or safely m
 
 ## VERIFIED
 
-Last verified : `2026-05-29`
-Verified by   : agent session · `05856dd128c7`
+Last verified : `2026-06-02`
+Verified by   : agent session · `0062185`
 Environment   : Linux · Go 1.26.3 (Verified) · make
-

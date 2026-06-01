@@ -52,16 +52,13 @@ type Index struct {
 	Entries []IndexEntry
 }
 
-// CommitObj encapsulates commit metadata.
-// While Git uses a plain-text key-value format for commits, Persephone serializes this structure
-// to a zlib-compressed JSON string within .purr/objects for ease of serialization and modern extensibility
-// in Go, while structurally preserving author, committer, and hierarchy links (parent pointers).
+// CommitObj is the in-memory representation of commit metadata.
+// BuildCommitObject serializes it into a Git-style plain-text payload before zlib compression.
 type CommitObj struct {
-	TreeHash   string     `json:"tree"`      // SHA-1 hash of the root tree object representing the repository state
-	ParentHash string     `json:"parent"`    // SHA-1 hash of the parent commit (empty string for initial commits)
-	Author     PurrConfig `json:"author"`    // Creator of the changes
-	Committer  PurrConfig `json:"committer"` // Person who committed the changes (usually identical to the author)
-	Message    string     `json:"message"`   // Developer-provided commit message
-	Timestamp  time.Time  `json:"timestamp"` // Time of commit generation, preserved for deterministic hashing
+	TreeHash   string     // SHA-1 hash of the root tree object representing the repository state
+	ParentHash string     // SHA-1 hash of the parent commit (empty string for initial commits)
+	Author     PurrConfig // Creator of the changes
+	Committer  PurrConfig // Person who committed the changes (usually identical to the author)
+	Message    string     // Developer-provided commit message
+	Timestamp  time.Time  // Time of commit generation, preserved for deterministic hashing
 }
-

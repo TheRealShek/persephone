@@ -344,7 +344,6 @@ func TestGetHEADCommit_WithExistingCommit(t *testing.T) {
 	}
 }
 
-
 func TestUpdateBranchRef_CreatesRefFile(t *testing.T) {
 	root := t.TempDir()
 	setupPurrDir(t, root)
@@ -553,6 +552,20 @@ func TestBuildCommitObject_MissingAuthor(t *testing.T) {
 				t.Errorf("expected error for missing author info, got nil")
 			}
 		})
+	}
+}
+
+func TestBuildCommitObject_MissingCommitter(t *testing.T) {
+	testTime := time.Date(2025, 3, 15, 8, 0, 0, 0, time.UTC)
+	commit := &CommitObj{
+		TreeHash:  strings.Repeat("a", 40),
+		Author:    PurrConfig{UserName: "Author", UserEmail: "author@example.com"},
+		Message:   "missing committer",
+		Timestamp: testTime,
+	}
+
+	if _, err := BuildCommitObject(commit); err == nil {
+		t.Fatal("BuildCommitObject() expected error for missing committer")
 	}
 }
 

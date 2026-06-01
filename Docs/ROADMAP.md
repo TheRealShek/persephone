@@ -25,12 +25,12 @@ A comprehensive systems audit performed on 2026-05-28 identified critical bugs, 
     *   *Issue*: If the process is killed mid-write (crash, Ctrl+C, power loss), a half-written index file results.
     *   *Fix*: Write to a `.lock` temp file first, execute `fsync`, and perform an atomic `rename()` replacement.
     *   *Impact*: Same vulnerability exists in `StoreObject`, `UpdateHEAD`, and `WriteConfig`.
-*   **[C2] Platform-Specific Syscalls (Won't Compile on Linux)**
+*   **[C2] Platform-Specific Syscalls (Resolved)**
     *   *Issue*: Hard type assertion `fileInfo.Sys().(*syscall.Win32FileAttributeData)` inside `utils.go` and raw UTF16 Windows API calls inside `Init.go` cause compilation failure on Linux/Unix systems natively.
-    *   *Fix*: Separate into `*_windows.go` and `*_unix.go` platform files using Go build tags (`//go:build`).
-*   **[C3] Non-Deterministic Commit Hashes**
+    *   *Resolution*: Platform-specific stat extraction and hidden-file behavior now live under `internal/platform/` in files selected by Go build tags.
+*   **[C3] Non-Deterministic Commit Hashes (Resolved)**
     *   *Issue*: Calling `time.Now()` multiple times inside hashing and metadata generation causes the computed hash to mismatch the stored commit content.
-    *   *Fix*: Inject explicit `Timestamp` field into `CommitObj` generated at the command CLI boundary.
+    *   *Resolution*: `CommitPurrFiles` captures one timestamp in `CommitObj`; hashing and storage both serialize that same value.
 *   **[C4] No Index Lock**
     *   *Issue*: Concurrent `purr add` processes running simultaneously will corrupt the index.
     *   *Fix*: Acquire a file-based lock via `.purr/index.lock` during writes.
@@ -53,7 +53,8 @@ A comprehensive systems audit performed on 2026-05-28 identified critical bugs, 
 Once the codebase audit is completely resolved, the project will expand into parallel branches, semantic conflict merging, and peer-to-peer data replication.
 
 ### 3.1 Inspection Engine
-*   **`purr log` (Concurrent Graph Traversal)**: Walk the parent pointers concurrently, indexing commit nodes inside Pebble or Badger DB for instantaneous historical filtering.
+*   **`purr log` (Baseline Implemented)**: Resolves HEAD and walks the current single-parent loose-object chain newest-to-oldest, rejecting malformed ancestry cycles.
+*   **`purr log` (Future Graph Traversal)**: Extend history inspection for merge graphs and index commit nodes inside Pebble or Badger DB for instantaneous historical filtering.
 *   **`purr status` (Instant Status)**: Build a persistent background daemon via `fsnotify` to listen for real-time filesystem changes, resolving status queries instantly (O(1)) without recursive tree walks.
 
 ### 3.2 Branch & State Management

@@ -128,4 +128,7 @@ purr ls
 
 # 6. Commit snapshot
 purr commit -m "Manual verification snapshot"
+
+# 7. Inspect HEAD ancestry
+purr log
 ```

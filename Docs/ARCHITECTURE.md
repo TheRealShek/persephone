@@ -12,10 +12,13 @@ internal/
 │   ├── Add.go           ← owns goroutine pool, mutex, filepath.Join(".purr","index"), os.Stat
 │   ├── Commit.go        ← owns zlib compression, tree building, HEAD resolution
 │   ├── Config.go
-│   ├── Init.go          ← Windows syscalls without build tags
-│   └── Ls.go
+│   ├── Init.go
+│   ├── Ls.go
+│   └── Log.go           ← walks validated single-parent commit ancestry from HEAD
+├── platform/            ← OS-specific stat extraction and hidden-directory behavior behind build tags
+├── repository/          ← repository path helpers introduced incrementally
 └── utils/               ← everything else dumped here
-    ├── commitFunctions.go  ← tree objects + commit objects + HEAD + branch refs + config check
+    ├── commitFunctions.go  ← tree objects + commit object parsing + HEAD + branch refs + config check
     ├── config.go           ← global config I/O
     ├── index.go            ← binary index serialization
     ├── shaFunctions.go     ← blob hashing + tree hashing
@@ -29,11 +32,10 @@ internal/
 |---|---|---|
 | **God package** | `utils/` has 6 files doing 8+ unrelated things | Can't test hashing without pulling in filesystem, HEAD, config, index |
 | **No abstraction boundary** | `Add.go` directly calls `os.Stat`, `filepath.Join(".purr",...)`, `os.Getwd()` | Can't test add logic without a real filesystem |
-| **Platform code mixed with core** | `utils.go:83` casts to `Win32FileAttributeData`, `Init.go` calls Windows syscalls | Won't compile cross-platform |
 | **Concurrency in business logic** | `Add.go` owns goroutine pool, semaphore, mutex | Can't change concurrency strategy without editing command logic |
 | **Path construction scattered** | 27 separate `filepath.Join(".purr", ...)` calls across 8 files | One rename of `.purr` requires editing every file |
-| **No repository object** | Every function independently resolves paths relative to CWD | No way to operate on a repo from a subdirectory or test with a temp dir |
-| **Duplicate functions** | `GetHEADCommit` / `GetParentCommit`, `UpdateHEAD` / `UpdateBranchRef` | Will inevitably drift |
+| **Repository helpers not adopted broadly** | `internal/repository` centralizes paths, but existing command and utility functions still construct paths independently | Operating on repositories from subdirectories remains inconsistent |
+| **Duplicate ref update functions** | `UpdateHEAD` / `UpdateBranchRef` | Will inevitably drift |
 | **Types for everything in one file** | `IndexEntry`, `CommitObj`, `TreeEntries`, `PurrConfig`, `Index` all in `types.go` | Index types coupled to commit types coupled to config types |
 
 **The root cause:** There's no domain model. Code is organized by "command" vs "not command" instead of by responsibility.
@@ -248,6 +250,11 @@ sequenceDiagram
     CLI->>Core: InitPurrDirectories(".")
 
     activate Core
+    Core->>OS: Check whether ".purr" already exists
+    alt Metadata root already exists
+        Core-->>CLI: Return "repository already initialized"
+        CLI-->>User: Print error and stop
+    else New repository
     Core->>OS: os.MkdirAll(".purr/{objects,refs/heads,logs}")
     Note over Core,OS: If OS is Windows, sets .purr directory as hidden
 
@@ -260,16 +267,18 @@ sequenceDiagram
     deactivate Core
 
     CLI-->>User: Prints "Initialized empty repository"
+    end
 ```
 
 1. **Invocation**: The user executes `purr init`. The runtime invokes the entrypoint in `cmd/init.go`.
 2. **Directory Bootstrapping**: Core calls `InitPurrDirectories(".")` inside `internal/purrCommands/Init.go`. It builds `.purr/objects`, `.purr/refs/heads`, and `.purr/logs`.
-3. **OS-Specific Adjustments**: On Windows platforms, `.purr` is set to "hidden" using syscalls.
-4. **Staging Index Creation**: Writes a valid 12-byte binary index header if the file is missing:
+3. **Create-Only Guard**: If `.purr` already exists, initialization fails before touching metadata. Recovery of incomplete or damaged repositories is intentionally an explicit operation rather than a side effect of rerunning `purr init`.
+4. **OS-Specific Adjustments**: On Windows platforms, `.purr` is set to "hidden" using syscalls.
+5. **Staging Index Creation**: Writes a valid 12-byte binary index header:
    - Magic signature: `"DIRC"` (4 bytes)
    - Staging Version: `2` (4 bytes, big-endian)
    - Initial count of entries: `0` (4 bytes, big-endian)
-5. **HEAD Initialization**: Writes `"ref: refs/heads/main\n"` to `.purr/HEAD`, binding active tracking to the `main` branch.
+6. **HEAD Initialization**: Writes `"ref: refs/heads/main\n"` to `.purr/HEAD`, binding active tracking to the `main` branch.
 
 ### 6.2 `purr ls`
 

@@ -17,7 +17,7 @@ func TestFullWorkflow_InitAddCommit(t *testing.T) {
 	repo := t.TempDir()
 
 	// 1. Init
-	_, err := purrCommands.InitPurrDirectories(repo)
+	err := purrCommands.InitPurrDirectories(repo)
 	if err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
@@ -216,18 +216,17 @@ func TestFullWorkflow_AddSpecificThenAll(t *testing.T) {
 	}
 }
 
-func TestFullWorkflow_InitIdempotent(t *testing.T) {
+func TestFullWorkflow_RejectsRepeatedInit(t *testing.T) {
 	repo := t.TempDir()
 
-	// Init twice should not fail
-	_, err := purrCommands.InitPurrDirectories(repo)
+	err := purrCommands.InitPurrDirectories(repo)
 	if err != nil {
 		t.Fatalf("First init failed: %v", err)
 	}
 
-	_, err = purrCommands.InitPurrDirectories(repo)
-	if err != nil {
-		t.Fatalf("Second init failed: %v", err)
+	err = purrCommands.InitPurrDirectories(repo)
+	if err == nil {
+		t.Fatal("Second init should fail for an existing repository")
 	}
 
 	// Verify structure is intact
@@ -242,7 +241,7 @@ func TestFullWorkflow_InitIdempotent(t *testing.T) {
 
 	for _, p := range requiredPaths {
 		if _, err := os.Stat(p); os.IsNotExist(err) {
-			t.Errorf("Required path missing after double init: %s", p)
+			t.Errorf("Required path missing after rejected second init: %s", p)
 		}
 	}
 }
@@ -326,7 +325,7 @@ func TestFullWorkflow_DeletionCommit(t *testing.T) {
 
 	// Let's compute what an empty tree hash should be
 	emptyTreeHash, _ := utils.ComputeTreeSHA1(repo, []*utils.TreeEntries{})
-	
+
 	if treeHash != emptyTreeHash {
 		t.Errorf("Expected second commit to have empty tree hash %q, got %q", emptyTreeHash, treeHash)
 	}

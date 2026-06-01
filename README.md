@@ -18,7 +18,7 @@ Persephone (CLI tool `purr`) is an experimental lab exploring a simple question:
 - **Concurrency First:** Designed from the ground up to leverage Go's goroutines for blazing-fast operations (e.g., parallel file hashing).
 - **Modern Storage:** Exploring modern storage backends beyond flat-file layouts.
 - **Beautiful UX:** Semantic CLI output via lipgloss.
-- **Extensible Design:** Built with Go interfaces and JSON payloads to make tooling, metadata parsing, and extensions trivial.
+- **Extensible Design:** Built around content-addressed objects and Go packages that can evolve toward richer metadata and extensions.
 
 ---
 
@@ -34,13 +34,14 @@ The foundation of the VCS is being laid down. Here is the current command suppor
 
 | Command | Description | Status / Features |
 |---|---|---|
-| `purr init` | Initializes a new repository | Works (Sets up `.purr` database) |
+| `purr init` | Initializes a new repository | Works (create-only `.purr` setup) |
 | `purr config` | Get and set global options | Works (Global JSON config) |
 | `purr add` | Stages files into the index | Works (Concurrent hashing, skip unchanged) |
 | `purr ls` | Shows staged files | Works (formatted table, short hashes) |
-| `purr commit` | Records changes | Works (JSON commit objects, SHA-1) |
+| `purr commit` | Records changes | Works (Git-style commit objects, SHA-1) |
+| `purr log` | Shows commit history | Works (HEAD ancestry, newest-to-oldest) |
 
-> *Note: Everything else (branch, merge, remote, log, diff, etc.) is currently **not implemented**.*
+> *Note: Everything else (branch, merge, remote, diff, etc.) is currently **not implemented**.*
 
 ---
 
@@ -49,9 +50,9 @@ The foundation of the VCS is being laid down. Here is the current command suppor
 *(No guarantees — this is a lab!)*
 
 ### Near-term
-- **Modern Metadata:** Using JSON or ProtoBuf for commit metadata.
+- **Modern Metadata:** Explore optional structured metadata beyond the current Git-style commit payload.
 - **Extensibility:** A robust plugin interface via Go interfaces.
-- **Visualizations:** `purr log` with scrollable TUI.
+- **Visualizations:** Extend `purr log` with a scrollable graph TUI.
 
 ### Long-term
 - **Alternative Storage:** Storing blobs/trees/commits in Badger/Pebble instead of a flat `.purr/objects` structure.

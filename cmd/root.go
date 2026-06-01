@@ -76,7 +76,7 @@ func setCustomHelp(rootCmd *cobra.Command) {
 
 		if cmd.HasAvailableSubCommands() {
 			fmt.Fprintln(out, ui.HelpSection("Available Commands"))
-			
+
 			getCmd := func(name string) *cobra.Command {
 				for _, c := range cmd.Commands() {
 					if c.Name() == name {
@@ -121,6 +121,24 @@ func setCustomHelp(rootCmd *cobra.Command) {
 				}
 				fmt.Fprintln(out)
 			}
+
+			historyCmds := []string{"log"}
+			historyFound := false
+			for _, name := range historyCmds {
+				if getCmd(name) != nil {
+					historyFound = true
+					break
+				}
+			}
+			if historyFound {
+				fmt.Fprintln(out, ui.HelpGroup("History"))
+				for _, name := range historyCmds {
+					if c := getCmd(name); c != nil {
+						fmt.Fprint(out, ui.HelpCommand(c.Name(), c.Short, c.UseLine())+"\n")
+					}
+				}
+				fmt.Fprintln(out)
+			}
 		}
 
 		if cmd.HasAvailableFlags() {
@@ -149,4 +167,3 @@ func setCustomHelp(rootCmd *cobra.Command) {
 		return nil
 	})
 }
-

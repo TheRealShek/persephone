@@ -16,6 +16,7 @@ test-home/
 test-*/
 playground-*/
 temp-repo*/
+.*
 
 # ------------------------------------------
 # Go-Specific Rules

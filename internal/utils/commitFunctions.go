@@ -10,18 +10,20 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"Persephone/internal/ui"
 )
 
 // BuildTreeObject constructs a Git-compatible tree object from a slice of TreeEntries.
 // A Git tree object is a binary snapshot of a directory. Its formatting rules are rigid:
-//  - Entries must be sorted lexicographically by name.
-//  - In Git sorting conventions, a directory (tree) is compared as if it has a trailing slash "/"
-//    (e.g., "src/" sorts after "src.go"), ensuring parent-child folder structures are deterministic.
-//  - Format for each entry: "{mode} {name}\x00{20-byte SHA-1 raw bytes}"
-//  - The whole content is prepended with the header "tree {size}\x00".
+//   - Entries must be sorted lexicographically by name.
+//   - In Git sorting conventions, a directory (tree) is compared as if it has a trailing slash "/"
+//     (e.g., "src/" sorts after "src.go"), ensuring parent-child folder structures are deterministic.
+//   - Format for each entry: "{mode} {name}\x00{20-byte SHA-1 raw bytes}"
+//   - The whole content is prepended with the header "tree {size}\x00".
 func BuildTreeObject(rootDir string, entries []*TreeEntries) ([]byte, error) {
 	if len(entries) == 0 {
 		return []byte("tree 0\x00"), nil
@@ -105,11 +107,11 @@ func BuildTreeObject(rootDir string, entries []*TreeEntries) ([]byte, error) {
 		if entry.Mode != "100644" && entry.Mode != "100755" && entry.Mode != "040000" {
 			return nil, fmt.Errorf("invalid mode for entry %s: %s", entry.Name, entry.Mode)
 		}
-		
+
 		// Serialize entry header: e.g. "100644 filename.go\x00"
 		line := fmt.Sprintf("%s %s\x00", entry.Mode, entry.Name)
 		treeContent = append(treeContent, []byte(line)...)
-		
+
 		// Decode hex hash into its raw 20-byte SHA-1 binary format
 		shaBytes, err := hex.DecodeString(entry.Sha1Hex)
 		if err != nil || len(shaBytes) != 20 {
@@ -140,7 +142,7 @@ func ComputeCommitSHA1(commit *CommitObj) (string, error) {
 // In Git, a commit object is a plain-text payload containing links to a tree snapshot, parent commit(s),
 // author/committer names and timestamps, followed by a double newline and the message:
 //
-//   commit {size}\x00tree {tree-hash}\n[parent {parent-hash}\n]author {name} <{email}> {unix-time} +0000\n...
+//	commit {size}\x00tree {tree-hash}\n[parent {parent-hash}\n]author {name} <{email}> {unix-time} +0000\n...
 //
 // This allows tools to parse commits uniformly. Timezones are hardcoded to "+0000" (UTC)
 // to guarantee test execution determinism across different developer systems.
@@ -153,6 +155,9 @@ func BuildCommitObject(commit *CommitObj) ([]byte, error) {
 	}
 	if commit.Author.UserName == "" || commit.Author.UserEmail == "" {
 		return nil, fmt.Errorf("author name and email are required")
+	}
+	if commit.Committer.UserName == "" || commit.Committer.UserEmail == "" {
+		return nil, fmt.Errorf("committer name and email are required")
 	}
 
 	var content strings.Builder
@@ -200,7 +205,6 @@ func BuildCommitObject(commit *CommitObj) ([]byte, error) {
 
 	return commitObj, nil
 }
-
 
 // UpdateBranchRef updates the active branch's reference file with the newly created commit's SHA-1.
 // By writing the 40-character commit hash followed by a newline into `.purr/refs/heads/<branch>`,
@@ -266,36 +270,159 @@ func CheckConfigFile() (string, string, error) {
 //  3. Parses the header `commit {size}\x00` and extracts the metadata payload
 //  4. Reads the first line which must contain `tree {treeHash}`
 func GetCommitTreeHash(rootDir string, commitHash string) (string, error) {
-	objPath := filepath.Join(rootDir, ".purr", "objects", commitHash[:2], commitHash[2:])
-	compressed, err := os.ReadFile(objPath)
+	commit, err := ReadCommitObject(rootDir, commitHash)
 	if err != nil {
 		return "", err
 	}
 
+	return commit.TreeHash, nil
+}
+
+// ReadCommitObject loads a loose commit object and reconstructs its in-memory representation.
+//
+// Object Boundary:
+// Commits share `.purr/objects` with blobs and trees, so callers must not treat decompressed bytes as
+// trusted text. This parser validates the fan-out hash, the `commit <size>\x00` envelope, and the
+// metadata required by BuildCommitObject before history traversal follows the parent pointer.
+func ReadCommitObject(rootDir string, commitHash string) (*CommitObj, error) {
+	if !isSHA1Hex(commitHash) {
+		return nil, fmt.Errorf("invalid commit hash %q: expected 40 hexadecimal characters", commitHash)
+	}
+
+	objPath := filepath.Join(rootDir, ".purr", "objects", commitHash[:2], commitHash[2:])
+	compressed, err := os.ReadFile(objPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read commit object %s: %w", commitHash, err)
+	}
+
 	r, err := zlib.NewReader(bytes.NewReader(compressed))
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("failed to decompress commit object %s: %w", commitHash, err)
 	}
 	defer r.Close()
 
 	content, err := io.ReadAll(r)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("failed to read decompressed commit object %s: %w", commitHash, err)
 	}
 
-	// Git binary objects always terminate their type/size header with a null byte
 	nullIndex := bytes.IndexByte(content, 0)
 	if nullIndex == -1 {
-		return "", fmt.Errorf("invalid commit object: no null byte")
+		return nil, fmt.Errorf("invalid commit object %s: missing object header terminator", commitHash)
+	}
+
+	header := string(content[:nullIndex])
+	headerParts := strings.Split(header, " ")
+	if len(headerParts) != 2 || headerParts[0] != "commit" {
+		return nil, fmt.Errorf("invalid commit object %s: expected commit header", commitHash)
+	}
+
+	expectedSize, err := strconv.Atoi(headerParts[1])
+	if err != nil || expectedSize < 0 {
+		return nil, fmt.Errorf("invalid commit object %s: invalid payload size", commitHash)
 	}
 
 	body := content[nullIndex+1:]
-	lines := strings.Split(string(body), "\n")
-
-	if len(lines) > 0 && strings.HasPrefix(lines[0], "tree ") {
-		treeHash := strings.TrimPrefix(lines[0], "tree ")
-		return strings.TrimSpace(treeHash), nil
+	if len(body) != expectedSize {
+		return nil, fmt.Errorf("invalid commit object %s: payload size mismatch", commitHash)
 	}
 
-	return "", fmt.Errorf("invalid commit object: no tree line")
+	metadata, message, found := strings.Cut(string(body), "\n\n")
+	if !found {
+		return nil, fmt.Errorf("invalid commit object %s: missing message separator", commitHash)
+	}
+
+	commit := &CommitObj{Message: strings.TrimSuffix(message, "\n")}
+	var authorTimestamp time.Time
+
+	for _, line := range strings.Split(metadata, "\n") {
+		switch {
+		case strings.HasPrefix(line, "tree "):
+			if commit.TreeHash != "" {
+				return nil, fmt.Errorf("invalid commit object %s: duplicate tree header", commitHash)
+			}
+			commit.TreeHash = strings.TrimPrefix(line, "tree ")
+			if !isSHA1Hex(commit.TreeHash) {
+				return nil, fmt.Errorf("invalid commit object %s: malformed tree hash", commitHash)
+			}
+		case strings.HasPrefix(line, "parent "):
+			if commit.ParentHash != "" {
+				return nil, fmt.Errorf("invalid commit object %s: multiple parents are not supported", commitHash)
+			}
+			commit.ParentHash = strings.TrimPrefix(line, "parent ")
+			if !isSHA1Hex(commit.ParentHash) {
+				return nil, fmt.Errorf("invalid commit object %s: malformed parent hash", commitHash)
+			}
+		case strings.HasPrefix(line, "author "):
+			if commit.Author.UserName != "" || commit.Author.UserEmail != "" {
+				return nil, fmt.Errorf("invalid commit object %s: duplicate author header", commitHash)
+			}
+			commit.Author, authorTimestamp, err = parseCommitIdentity(strings.TrimPrefix(line, "author "))
+			if err != nil {
+				return nil, fmt.Errorf("invalid commit object %s: malformed author: %w", commitHash, err)
+			}
+		case strings.HasPrefix(line, "committer "):
+			if commit.Committer.UserName != "" || commit.Committer.UserEmail != "" {
+				return nil, fmt.Errorf("invalid commit object %s: duplicate committer header", commitHash)
+			}
+			commit.Committer, _, err = parseCommitIdentity(strings.TrimPrefix(line, "committer "))
+			if err != nil {
+				return nil, fmt.Errorf("invalid commit object %s: malformed committer: %w", commitHash, err)
+			}
+		default:
+			return nil, fmt.Errorf("invalid commit object %s: unsupported metadata header %q", commitHash, line)
+		}
+	}
+
+	if commit.TreeHash == "" || commit.Author.UserName == "" || commit.Committer.UserName == "" {
+		return nil, fmt.Errorf("invalid commit object %s: missing required metadata", commitHash)
+	}
+	if commit.Message == "" {
+		return nil, fmt.Errorf("invalid commit object %s: missing commit message", commitHash)
+	}
+
+	commit.Timestamp = authorTimestamp
+	return commit, nil
+}
+
+// parseCommitIdentity reads the trailing timestamp fields from Git-style identity metadata while
+// preserving spaces in developer names. Persephone currently writes UTC offsets and records the
+// author timestamp on CommitObj because author and committer timestamps are generated together.
+func parseCommitIdentity(value string) (PurrConfig, time.Time, error) {
+	emailStart := strings.LastIndex(value, " <")
+	emailEnd := strings.LastIndex(value, "> ")
+	if emailStart <= 0 || emailEnd <= emailStart+2 {
+		return PurrConfig{}, time.Time{}, fmt.Errorf("expected name <email> timestamp timezone")
+	}
+
+	name := value[:emailStart]
+	email := value[emailStart+2 : emailEnd]
+	timeFields := strings.Fields(value[emailEnd+2:])
+	if name == "" || email == "" || len(timeFields) != 2 {
+		return PurrConfig{}, time.Time{}, fmt.Errorf("expected name <email> timestamp timezone")
+	}
+
+	unixTimestamp, err := strconv.ParseInt(timeFields[0], 10, 64)
+	if err != nil {
+		return PurrConfig{}, time.Time{}, fmt.Errorf("invalid unix timestamp")
+	}
+	if timeFields[1] != "+0000" {
+		return PurrConfig{}, time.Time{}, fmt.Errorf("unsupported timezone %q", timeFields[1])
+	}
+
+	return PurrConfig{UserName: name, UserEmail: email}, time.Unix(unixTimestamp, 0).UTC(), nil
+}
+
+func isSHA1Hex(hash string) bool {
+	if len(hash) != sha1.Size*2 {
+		return false
+	}
+
+	for _, char := range hash {
+		if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') || (char >= 'A' && char <= 'F')) {
+			return false
+		}
+	}
+
+	return true
 }

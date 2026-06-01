@@ -12,15 +12,22 @@ import (
 // InitPurrDirectories bootstraps a new Persephone repository.
 //
 // Directory Architecture:
-//  - `.purr/objects`: Stored content-addressed blobs, trees, and commit snapshots compressed with zlib.
-//  - `.purr/refs/heads`: Stored branch pointer files (each contains the 40-char SHA-1 of the tip commit).
-//  - `.purr/logs`: Stored operation logs for eventual reflog capabilities.
-func InitPurrDirectories(basePath string) (bool, error) {
+//   - `.purr/objects`: Stored content-addressed blobs, trees, and commit snapshots compressed with zlib.
+//   - `.purr/refs/heads`: Stored branch pointer files (each contains the 40-char SHA-1 of the tip commit).
+//   - `.purr/logs`: Stored operation logs for eventual reflog capabilities.
+//
+// Initialization is deliberately create-only. If `.purr` already exists, callers receive an error
+// before any metadata is touched. Repository recovery must be explicit because silently filling in
+// missing files can hide corruption and make a mistyped repeated command modify repository state.
+func InitPurrDirectories(basePath string) error {
 	purrDir := filepath.Join(basePath, ".purr")
-
-	isNewRepo := false
-	if _, err := os.Stat(purrDir); os.IsNotExist(err) {
-		isNewRepo = true
+	if info, err := os.Stat(purrDir); err == nil {
+		if info.IsDir() {
+			return fmt.Errorf("repository already initialized: %s already exists", purrDir)
+		}
+		return fmt.Errorf("cannot initialize repository: %s exists and is not a directory", purrDir)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("cannot inspect repository metadata path: %w", err)
 	}
 
 	dirs := []string{
@@ -31,13 +38,13 @@ func InitPurrDirectories(basePath string) (bool, error) {
 
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return false, err
+			return err
 		}
 	}
 
 	// Register OS-specific attributes: hides the `.purr` directory on Windows (no-op on Unix/macOS)
 	if err := platform.SetHidden(purrDir); err != nil {
-		return false, err
+		return err
 	}
 
 	// Bootstrap index file:
@@ -47,22 +54,22 @@ func InitPurrDirectories(basePath string) (bool, error) {
 	indexPath := filepath.Join(purrDir, "index")
 	if info, err := os.Stat(indexPath); err != nil {
 		if !os.IsNotExist(err) {
-			return false, err
+			return err
 		}
 		var buf bytes.Buffer
 		buf.WriteString("DIRC")
 		if err := binary.Write(&buf, binary.BigEndian, uint32(2)); err != nil {
-			return false, err
+			return err
 		}
 		if err := binary.Write(&buf, binary.BigEndian, uint32(0)); err != nil {
-			return false, err
+			return err
 		}
 
 		if err := os.WriteFile(indexPath, buf.Bytes(), 0644); err != nil {
-			return false, err
+			return err
 		}
 	} else if info.IsDir() {
-		return false, fmt.Errorf("cannot create index: %s is a directory", indexPath)
+		return fmt.Errorf("cannot create index: %s is a directory", indexPath)
 	}
 
 	// Set default active branch:
@@ -70,16 +77,15 @@ func InitPurrDirectories(basePath string) (bool, error) {
 	headPath := filepath.Join(purrDir, "HEAD")
 	if info, err := os.Stat(headPath); err != nil {
 		if !os.IsNotExist(err) {
-			return false, err
+			return err
 		}
 		headContent := "ref: refs/heads/main\n"
 		if err := os.WriteFile(headPath, []byte(headContent), 0644); err != nil {
-			return false, err
+			return err
 		}
 	} else if info.IsDir() {
-		return false, fmt.Errorf("cannot create HEAD: %s is a directory", headPath)
+		return fmt.Errorf("cannot create HEAD: %s is a directory", headPath)
 	}
 
-	return isNewRepo, nil
+	return nil
 }
-

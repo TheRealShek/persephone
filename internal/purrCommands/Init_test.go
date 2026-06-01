@@ -5,13 +5,14 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
 func TestInitPurrDirectories_CreatesAllDirs(t *testing.T) {
 	base := t.TempDir()
 
-	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
+	if err := purrCommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("InitPurrDirectories() error = %v", err)
 	}
 
@@ -36,7 +37,7 @@ func TestInitPurrDirectories_CreatesAllDirs(t *testing.T) {
 func TestInitPurrDirectories_IndexFileHeader(t *testing.T) {
 	base := t.TempDir()
 
-	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
+	if err := purrCommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("InitPurrDirectories() error = %v", err)
 	}
 
@@ -72,7 +73,7 @@ func TestInitPurrDirectories_IndexFileHeader(t *testing.T) {
 func TestInitPurrDirectories_HEADContent(t *testing.T) {
 	base := t.TempDir()
 
-	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
+	if err := purrCommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("InitPurrDirectories() error = %v", err)
 	}
 
@@ -88,11 +89,11 @@ func TestInitPurrDirectories_HEADContent(t *testing.T) {
 	}
 }
 
-func TestInitPurrDirectories_Idempotent(t *testing.T) {
+func TestInitPurrDirectories_RejectsExistingRepository(t *testing.T) {
 	base := t.TempDir()
 
 	// First call
-	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
+	if err := purrCommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("first InitPurrDirectories() error = %v", err)
 	}
 
@@ -109,9 +110,10 @@ func TestInitPurrDirectories_Idempotent(t *testing.T) {
 		t.Fatalf("failed to read HEAD after first init: %v", err)
 	}
 
-	// Second call — should not error
-	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
-		t.Fatalf("second InitPurrDirectories() error = %v", err)
+	// Initialization is intentionally create-only. Existing metadata must be inspected and
+	// repaired explicitly rather than modified as a side effect of a repeated command.
+	if err := purrCommands.InitPurrDirectories(base); err == nil {
+		t.Fatal("second InitPurrDirectories() expected an already-initialized error")
 	}
 
 	// Contents should be unchanged
@@ -147,9 +149,9 @@ func TestInitPurrDirectories_PreservesExistingIndex(t *testing.T) {
 		t.Fatalf("failed to write custom index: %v", err)
 	}
 
-	// Init should NOT overwrite the existing index
-	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
-		t.Fatalf("InitPurrDirectories() error = %v", err)
+	// Init must reject an existing metadata root before touching its contents.
+	if err := purrCommands.InitPurrDirectories(base); err == nil {
+		t.Fatal("InitPurrDirectories() expected an already-initialized error")
 	}
 
 	data, err := os.ReadFile(indexPath)
@@ -177,9 +179,9 @@ func TestInitPurrDirectories_PreservesExistingHEAD(t *testing.T) {
 		t.Fatalf("failed to write custom HEAD: %v", err)
 	}
 
-	// Init should NOT overwrite the existing HEAD
-	if _, err := purrCommands.InitPurrDirectories(base); err != nil {
-		t.Fatalf("InitPurrDirectories() error = %v", err)
+	// Init must reject an existing metadata root before touching its contents.
+	if err := purrCommands.InitPurrDirectories(base); err == nil {
+		t.Fatal("InitPurrDirectories() expected an already-initialized error")
 	}
 
 	data, err := os.ReadFile(headPath)
@@ -189,5 +191,21 @@ func TestInitPurrDirectories_PreservesExistingHEAD(t *testing.T) {
 
 	if string(data) != string(customContent) {
 		t.Errorf("existing HEAD was overwritten: got %q, want %q", string(data), string(customContent))
+	}
+}
+
+func TestInitPurrDirectories_RejectsMetadataFile(t *testing.T) {
+	base := t.TempDir()
+	purrPath := filepath.Join(base, ".purr")
+	if err := os.WriteFile(purrPath, []byte("occupied"), 0644); err != nil {
+		t.Fatalf("failed to create metadata path fixture: %v", err)
+	}
+
+	err := purrCommands.InitPurrDirectories(base)
+	if err == nil {
+		t.Fatal("InitPurrDirectories() expected an error when .purr is a file")
+	}
+	if got := err.Error(); !strings.Contains(got, "is not a directory") {
+		t.Fatalf("InitPurrDirectories() error = %q, want non-directory explanation", got)
 	}
 }

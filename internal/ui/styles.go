@@ -155,6 +155,24 @@ func LsRow(file, hash, perm string) string {
 	return lsFileStyle.Render(file) + lsHashStyle.Render(hash) + dimStyle.Render(perm)
 }
 
+// LogCommitHeader highlights the content-addressed identifier that links each displayed history node
+// back to its loose object under `.purr/objects`.
+func LogCommitHeader(hash string) string {
+	return Info("commit") + " " + Added(hash)
+}
+
+func LogLabel(label string) string {
+	return Metadata(label)
+}
+
+func LogMessage(message string) string {
+	lines := strings.Split(message, "\n")
+	for i := range lines {
+		lines[i] = "    " + lines[i]
+	}
+	return strings.Join(lines, "\n")
+}
+
 func ErrorText(text string) string {
 	return render(redStyle, text)
 }
@@ -281,4 +299,3 @@ func StyledPath(path string) string {
 
 	return strings.Join(parts, separator)
 }
-
