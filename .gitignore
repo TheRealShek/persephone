@@ -16,7 +16,16 @@ test-home/
 test-*/
 playground-*/
 temp-repo*/
-.*
+
+# AI / agent junk
+.agents/
+.antigravitycli/
+.antigravity/
+.codex/
+.gemini/
+.anthropic/
+.cursor/
+.copilot/
 
 # ------------------------------------------
 # Go-Specific Rules
@@ -34,12 +43,12 @@ purr
 /purr.exe
 **/purr
 
-# Go module/toolchain/build caches
+# Go caches
+.go/
 .gocache/
 .gomodcache/
 .gopath/
 .home/
-.go*
 
 # Test binaries and execution artifacts
 *.test
@@ -142,3 +151,7 @@ logs/
 log/
 tmp/
 temp/
+
+# Exceptions ------------------
+!cmd/purr/
+!cmd/purr/**

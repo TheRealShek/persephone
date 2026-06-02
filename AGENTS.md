@@ -86,6 +86,7 @@ No env vars required. No external services.
 - **File naming**: PascalCase in `internal/purrCommands/` (e.g., `Add.go`, `Commit.go`); camelCase in `internal/utils/` (e.g., `commitFunctions.go`)
 - **Index determinism**: Index entries are always sorted alphabetically by path before writing to disk
 - **Documentation**: Always update relevant documentation (e.g., in Docs/, README.md) whenever a major change is made, such as adding a new command or altering system architecture.
+- **Cleanup**: Always clean up and delete any temporary files, scratch scripts, or test directories generated during isolated testing or verification steps. Do not leave testing artifacts behind in the workspace.
 - **Build & test boundaries**: Do not build the binary unless strictly necessary. Rely primarily on basic test commands (`go test -race ./...`) for routine verification to avoid environment resource bottlenecks.
 
 ## GOTCHAS
