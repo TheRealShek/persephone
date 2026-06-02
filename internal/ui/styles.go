@@ -209,6 +209,14 @@ func Hintf(format string, args ...any) string {
 	return blueStyle.Render("[HINT]") + "    " + msg
 }
 
+func Warningf(format string, args ...any) string {
+	msg := fmt.Sprintf(format, args...)
+	if !Enabled() {
+		return "[WARNING] " + msg
+	}
+	return yellowStyle.Render("[WARNING]") + " " + msg
+}
+
 type HintError struct {
 	Err error
 }

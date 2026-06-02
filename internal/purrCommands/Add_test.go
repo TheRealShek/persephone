@@ -4,7 +4,9 @@ import (
 	"Persephone/internal/purrCommands"
 	"Persephone/internal/testutils"
 	"Persephone/internal/utils"
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -171,10 +173,22 @@ func TestAddPurrFiles_NoArgs(t *testing.T) {
 	os.Chdir(repo)
 	defer os.Chdir(originalWD)
 
-	// Calling AddPurrFiles with no arguments should not error
+	stdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
 	err := purrCommands.AddPurrFiles()
+
+	w.Close()
+	os.Stdout = stdout
+	output, _ := io.ReadAll(r)
+
 	if err != nil {
 		t.Fatalf("AddPurrFiles() with no args should not error, got: %v", err)
+	}
+
+	if !bytes.Contains(output, []byte("[WARNING]")) || !bytes.Contains(output, []byte("No files selected to add")) {
+		t.Fatalf("expected warning-style empty add message, got %q", string(output))
 	}
 }
 

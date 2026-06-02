@@ -104,7 +104,7 @@ func setCustomHelp(rootCmd *cobra.Command) {
 				fmt.Fprintln(out)
 			}
 
-			indexCmds := []string{"add", "ls", "commit"}
+			indexCmds := []string{"add", "remove", "ls", "commit"}
 			indexFound := false
 			for _, name := range indexCmds {
 				if getCmd(name) != nil {

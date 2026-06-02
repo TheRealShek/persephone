@@ -4,10 +4,13 @@ import (
 	"Persephone/internal/platform"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 )
+
+var ErrRepositoryAlreadyInitialized = errors.New("repository already initialized")
 
 // InitPurrDirectories bootstraps a new Persephone repository.
 //
@@ -16,20 +19,43 @@ import (
 //   - `.purr/refs/heads`: Stored branch pointer files (each contains the 40-char SHA-1 of the tip commit).
 //   - `.purr/logs`: Stored operation logs for eventual reflog capabilities.
 //
-// Initialization is deliberately create-only. If `.purr` already exists, callers receive an error
-// before any metadata is touched. Repository recovery must be explicit because silently filling in
-// missing files can hide corruption and make a mistyped repeated command modify repository state.
+// Initialization is deliberately create-only. If `.purr` already exists, callers receive a sentinel
+// error before any metadata is touched. The CLI uses that signal to request explicit confirmation
+// before calling ReinitializePurrDirectories.
 func InitPurrDirectories(basePath string) error {
 	purrDir := filepath.Join(basePath, ".purr")
 	if info, err := os.Stat(purrDir); err == nil {
 		if info.IsDir() {
-			return fmt.Errorf("repository already initialized: %s already exists", purrDir)
+			return fmt.Errorf("%w: %s already exists", ErrRepositoryAlreadyInitialized, purrDir)
 		}
 		return fmt.Errorf("cannot initialize repository: %s exists and is not a directory", purrDir)
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("cannot inspect repository metadata path: %w", err)
 	}
 
+	return ensurePurrDirectories(purrDir)
+}
+
+// ReinitializePurrDirectories restores missing repository scaffolding after the caller has received
+// explicit user confirmation. Existing index, HEAD, refs, and objects are preserved because rerunning
+// initialization is a repair operation, not a repository reset.
+func ReinitializePurrDirectories(basePath string) error {
+	purrDir := filepath.Join(basePath, ".purr")
+	info, err := os.Stat(purrDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("cannot reinitialize repository: %s does not exist", purrDir)
+		}
+		return fmt.Errorf("cannot inspect repository metadata path: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("cannot reinitialize repository: %s is not a directory", purrDir)
+	}
+
+	return ensurePurrDirectories(purrDir)
+}
+
+func ensurePurrDirectories(purrDir string) error {
 	dirs := []string{
 		filepath.Join(purrDir, "objects"),
 		filepath.Join(purrDir, "refs", "heads"),

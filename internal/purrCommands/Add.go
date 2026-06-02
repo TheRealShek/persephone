@@ -32,7 +32,7 @@ func AddPurrFiles(arg ...string) error {
 	}
 
 	if len(arg) == 0 {
-		fmt.Println(ui.Metadata("No files added"))
+		fmt.Println(ui.Warningf("No files selected to add"))
 		return nil
 	}
 

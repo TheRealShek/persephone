@@ -253,7 +253,15 @@ sequenceDiagram
     Core->>OS: Check whether ".purr" already exists
     alt Metadata root already exists
         Core-->>CLI: Return "repository already initialized"
-        CLI-->>User: Print error and stop
+        CLI-->>User: Ask whether to reinitialize [y/N]
+        alt User confirms
+            CLI->>Core: ReinitializePurrDirectories(".")
+            Core->>OS: Restore missing scaffolding without overwriting metadata
+            Core-->>CLI: Returns success status (nil)
+            CLI-->>User: Prints "Reinitialized existing repository"
+        else User declines or input ends
+            CLI-->>User: Prints "Reinitialization cancelled"
+        end
     else New repository
     Core->>OS: os.MkdirAll(".purr/{objects,refs/heads,logs}")
     Note over Core,OS: If OS is Windows, sets .purr directory as hidden
@@ -272,7 +280,7 @@ sequenceDiagram
 
 1. **Invocation**: The user executes `purr init`. The runtime invokes the entrypoint in `cmd/init.go`.
 2. **Directory Bootstrapping**: Core calls `InitPurrDirectories(".")` inside `internal/purrCommands/Init.go`. It builds `.purr/objects`, `.purr/refs/heads`, and `.purr/logs`.
-3. **Create-Only Guard**: If `.purr` already exists, initialization fails before touching metadata. Recovery of incomplete or damaged repositories is intentionally an explicit operation rather than a side effect of rerunning `purr init`.
+3. **Explicit Reinitialization Guard**: If `.purr` already exists, initial setup stops before touching metadata and the CLI asks for confirmation. An accepted reinitialization restores missing scaffolding while preserving index, HEAD, refs, and objects.
 4. **OS-Specific Adjustments**: On Windows platforms, `.purr` is set to "hidden" using syscalls.
 5. **Staging Index Creation**: Writes a valid 12-byte binary index header:
    - Magic signature: `"DIRC"` (4 bytes)

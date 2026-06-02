@@ -34,9 +34,10 @@ The foundation of the VCS is being laid down. Here is the current command suppor
 
 | Command | Description | Status / Features |
 |---|---|---|
-| `purr init` | Initializes a new repository | Works (create-only `.purr` setup) |
+| `purr init` | Initializes a new repository | Works (confirmation required before reinitialization) |
 | `purr config` | Get and set global options | Works (Global JSON config) |
 | `purr add` | Stages files into the index | Works (Concurrent hashing, skip unchanged) |
+| `purr remove` | Removes tracked files | Works (Removes from index and working directory) |
 | `purr ls` | Shows staged files | Works (formatted table, short hashes) |
 | `purr commit` | Records changes | Works (Git-style commit objects, SHA-1) |
 | `purr log` | Shows commit history | Works (HEAD ancestry, newest-to-oldest) |

@@ -209,3 +209,55 @@ func TestInitPurrDirectories_RejectsMetadataFile(t *testing.T) {
 		t.Fatalf("InitPurrDirectories() error = %q, want non-directory explanation", got)
 	}
 }
+
+func TestReinitializePurrDirectories_RestoresMissingStructureAndPreservesMetadata(t *testing.T) {
+	base := t.TempDir()
+	purrDir := filepath.Join(base, ".purr")
+	if err := os.MkdirAll(purrDir, 0755); err != nil {
+		t.Fatalf("failed to create metadata root: %v", err)
+	}
+
+	indexContent := []byte("existing-index")
+	headContent := []byte("ref: refs/heads/develop\n")
+	if err := os.WriteFile(filepath.Join(purrDir, "index"), indexContent, 0644); err != nil {
+		t.Fatalf("failed to write index fixture: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(purrDir, "HEAD"), headContent, 0644); err != nil {
+		t.Fatalf("failed to write HEAD fixture: %v", err)
+	}
+
+	if err := purrCommands.ReinitializePurrDirectories(base); err != nil {
+		t.Fatalf("ReinitializePurrDirectories() error = %v", err)
+	}
+
+	for _, relPath := range []string{"objects", filepath.Join("refs", "heads"), "logs"} {
+		info, err := os.Stat(filepath.Join(purrDir, relPath))
+		if err != nil {
+			t.Fatalf("expected restored directory %s: %v", relPath, err)
+		}
+		if !info.IsDir() {
+			t.Fatalf("restored path %s is not a directory", relPath)
+		}
+	}
+
+	indexAfter, err := os.ReadFile(filepath.Join(purrDir, "index"))
+	if err != nil {
+		t.Fatalf("failed to read index after reinitialize: %v", err)
+	}
+	headAfter, err := os.ReadFile(filepath.Join(purrDir, "HEAD"))
+	if err != nil {
+		t.Fatalf("failed to read HEAD after reinitialize: %v", err)
+	}
+	if string(indexAfter) != string(indexContent) {
+		t.Fatalf("index was overwritten: got %q, want %q", indexAfter, indexContent)
+	}
+	if string(headAfter) != string(headContent) {
+		t.Fatalf("HEAD was overwritten: got %q, want %q", headAfter, headContent)
+	}
+}
+
+func TestReinitializePurrDirectories_RejectsMissingRepository(t *testing.T) {
+	if err := purrCommands.ReinitializePurrDirectories(t.TempDir()); err == nil {
+		t.Fatal("ReinitializePurrDirectories() expected an error for missing metadata root")
+	}
+}
