@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // ExistsAndIsDirectory checks if the given path exists and represents a directory.
@@ -61,16 +62,35 @@ func WalkAndAddFiles(root string, handleFile func(string) error) error {
 	})
 }
 
+// createdDirs caches fan-out directories that have already been created during this process
+// lifetime, eliminating redundant mkdir syscalls (which return EEXIST but still cost a round-trip).
+// Each entry stores a *sync.Once to guarantee that concurrent goroutines targeting the same
+// 2-char hex prefix block until MkdirAll completes, preventing write-before-mkdir races.
+var createdDirs sync.Map
+
 // StoreObject writes compressed object payloads under `.purr/objects/xx/yyyy...`.
 // It guarantees that the 2-character hex prefix directory is created before writing the file
 // to support object fan-out conventions.
+//
+// Deduplication: Since object storage is content-addressable, an existing file at the target path
+// guarantees byte-identical content. We skip the write entirely to avoid redundant disk I/O.
 func StoreObject(rootDir string, hashStr string, data []byte) error {
-	dir := filepath.Join(rootDir, ".purr", "objects", hashStr[:2])
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+	objectPath := filepath.Join(rootDir, ".purr", "objects", hashStr[:2], hashStr[2:])
+	// Content-addressable dedup: same hash guarantees identical content
+	if _, err := os.Stat(objectPath); err == nil {
+		return nil
 	}
 
-	objectPath := filepath.Join(dir, hashStr[2:])
+	dir := filepath.Dir(objectPath)
+	val, _ := createdDirs.LoadOrStore(dir, &sync.Once{})
+	var mkdirErr error
+	val.(*sync.Once).Do(func() {
+		mkdirErr = os.MkdirAll(dir, 0755)
+	})
+	if mkdirErr != nil {
+		return mkdirErr
+	}
+
 	return os.WriteFile(objectPath, data, 0644)
 }
 

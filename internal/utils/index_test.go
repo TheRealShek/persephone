@@ -65,10 +65,9 @@ func TestReadWriteIndexRoundtrip(t *testing.T) {
 	}
 
 	for i := range entries {
-		// Time objects read from binary are strictly Unix timestamps (seconds)
-		// We should compare the Unix() value
-		if entries[i].Ctime.Unix() != readEntries[i].Ctime.Unix() {
-			t.Errorf("Entry %d Ctime mismatch", i)
+		// Version 3 preserves nanosecond precision through {uint32 sec, uint32 nsec} pairs
+		if !entries[i].Ctime.Equal(readEntries[i].Ctime) {
+			t.Errorf("Entry %d Ctime mismatch: want %v, got %v", i, entries[i].Ctime, readEntries[i].Ctime)
 		}
 		if entries[i].Path != readEntries[i].Path {
 			t.Errorf("Entry %d Path mismatch: expected %s, got %s", i, entries[i].Path, readEntries[i].Path)
@@ -130,8 +129,8 @@ func TestWriteIndex_PaddingAlignment(t *testing.T) {
 	tempDir := t.TempDir()
 	indexPath := filepath.Join(tempDir, "index")
 
-	// 62 metadata + 2 pathlen + 4 path bytes = 68.
-	// 68 % 8 = 4. Needs 4 bytes padding (72 total).
+	// 64 fixed + 4 path bytes = 68.
+	// Version 3 padding: 8 - (68 % 8) = 8 - 4 = 4 bytes padding (72 total entry).
 	entries := []IndexEntry{
 		{Path: "1234"},
 	}
@@ -233,11 +232,11 @@ func TestReadWriteIndex_AllFieldsPreserved(t *testing.T) {
 	got := readEntries[0]
 
 	// Verify every field
-	if original.Ctime.Unix() != got.Ctime.Unix() {
-		t.Errorf("Ctime mismatch: want %d, got %d", original.Ctime.Unix(), got.Ctime.Unix())
+	if !original.Ctime.Equal(got.Ctime) {
+		t.Errorf("Ctime mismatch: want %v, got %v", original.Ctime, got.Ctime)
 	}
-	if original.Mtime.Unix() != got.Mtime.Unix() {
-		t.Errorf("Mtime mismatch: want %d, got %d", original.Mtime.Unix(), got.Mtime.Unix())
+	if !original.Mtime.Equal(got.Mtime) {
+		t.Errorf("Mtime mismatch: want %v, got %v", original.Mtime, got.Mtime)
 	}
 	if original.Dev != got.Dev {
 		t.Errorf("Dev mismatch: want %d, got %d", original.Dev, got.Dev)
@@ -305,20 +304,20 @@ func TestReadWriteIndex_MultipleEntries(t *testing.T) {
 
 func TestWriteIndex_PaddingVariousLengths(t *testing.T) {
 	// Test that padding works correctly for various path lengths
-	// Entry = 62 (metadata) + 2 (pathlen) + len(path) + padding
-	// Total entry must be aligned to 8 bytes
+	// Version 3: entry = 64 (fixed) + len(path) + padding (1-8 NUL bytes)
+	// Total entry must be aligned to 8 bytes AND path must be NUL-terminated
 	tests := []struct {
 		name        string
 		pathLen     int
 		expectedSz  int // total file size = 12 (header) + entry size
 	}{
-		{"path_len_1", 1, 12 + 72},   // 62+2+1=65, pad to 72
-		{"path_len_2", 2, 12 + 72},   // 62+2+2=66, pad to 72
-		{"path_len_6", 6, 12 + 72},   // 62+2+6=70, pad to 72
-		{"path_len_7", 7, 12 + 72},   // 62+2+7=71, pad to 72
-		{"path_len_8", 8, 12 + 72},   // 62+2+8=72, no padding
-		{"path_len_9", 9, 12 + 80},   // 62+2+9=73, pad to 80
-		{"path_len_16", 16, 12 + 80}, // 62+2+16=80, no padding
+		{"path_len_1", 1, 12 + 72},    // 64+1=65, pad 7 -> 72
+		{"path_len_2", 2, 12 + 72},    // 64+2=66, pad 6 -> 72
+		{"path_len_6", 6, 12 + 72},    // 64+6=70, pad 2 -> 72
+		{"path_len_7", 7, 12 + 72},    // 64+7=71, pad 1 -> 72
+		{"path_len_8", 8, 12 + 80},    // 64+8=72, pad 8 -> 80 (NUL termination requires min 1 byte)
+		{"path_len_9", 9, 12 + 80},    // 64+9=73, pad 7 -> 80
+		{"path_len_16", 16, 12 + 88},  // 64+16=80, pad 8 -> 88 (NUL termination requires min 1 byte)
 	}
 
 	for _, tt := range tests {

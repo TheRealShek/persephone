@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -112,7 +112,8 @@ func addAllPurrFiles(path string) error {
 			existingEntry, exists := indexMap[relPath]
 			mu.Unlock()
 			if exists {
-				if fileInfo.ModTime().Equal(existingEntry.Mtime) {
+				if fileInfo.ModTime().Equal(existingEntry.Mtime) &&
+					uint32(fileInfo.Size()) == existingEntry.Size {
 					mu.Lock()
 					skippedCount++
 					mu.Unlock()
@@ -160,8 +161,8 @@ func addAllPurrFiles(path string) error {
 	}
 
 	// Lexicographical sorting is a VCS format invariant for fast lookup performance in standard Git
-	sort.Slice(updatedEntries, func(i, j int) bool {
-		return updatedEntries[i].Path < updatedEntries[j].Path
+	slices.SortFunc(updatedEntries, func(a, b utils.IndexEntry) int {
+		return strings.Compare(a.Path, b.Path)
 	})
 
 	indexPath := filepath.Join(path, ".purr", "index")
@@ -287,7 +288,8 @@ func addSpecificPurrFiles(path string, files []string) error {
 			existingEntry, exists := indexMap[relPath]
 			shouldSkip := false
 			if exists {
-				if fileInfo.ModTime().Equal(existingEntry.Mtime) {
+				if fileInfo.ModTime().Equal(existingEntry.Mtime) &&
+					uint32(fileInfo.Size()) == existingEntry.Size {
 					fmt.Printf("%s %s\n", ui.Modified("Unchanged:"), ui.StyledPath(relPath))
 					skippedCount++
 					shouldSkip = true
@@ -331,8 +333,8 @@ func addSpecificPurrFiles(path string, files []string) error {
 			updatedEntries = append(updatedEntries, *entry)
 		}
 
-		sort.Slice(updatedEntries, func(i, j int) bool {
-			return updatedEntries[i].Path < updatedEntries[j].Path
+		slices.SortFunc(updatedEntries, func(a, b utils.IndexEntry) int {
+			return strings.Compare(a.Path, b.Path)
 		})
 
 		indexPath := filepath.Join(path, ".purr", "index")
