@@ -2,18 +2,23 @@
 
 > _What if Git was reborn in Go, loved concurrency, and faster than classic Git?_
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](#)
-[![Go Version](https://img.shields.io/badge/go-1.25+-blue)](#)
-[![Status](https://img.shields.io/badge/status-experimental-orange)](#)
+[![Build Status](https://github.com/TheRealShek/persephone/actions/workflows/release.yml/badge.svg)](https://github.com/TheRealShek/persephone/actions/workflows/release.yml)
+[![Release](https://img.shields.io/github/v/release/TheRealShek/persephone)](https://github.com/TheRealShek/persephone/releases/latest)
+[![Go Version](https://img.shields.io/badge/go-1.25+-blue.svg)](https://golang.org/doc/go1.25)
+[![Go Report Card](https://goreportcard.com/badge/github.com/TheRealShek/persephone)](https://goreportcard.com/report/github.com/TheRealShek/persephone)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+---
+
+## Demo
+
+![Persephone CLI Demo](assets/demo.gif)
 
 ---
 
 ## About the Project
 
-**Git is legendary, but it's also aging.**
-The software landscape has evolved dramatically with the advent of SSDs, CI/CD pipelines, massive monorepos, and highly concurrent workloads. Yet, Git still behaves like a CLI tool from 2005.
-
-Persephone (CLI tool `purr`) is an experimental lab exploring a simple question: _"What if we rebuilt Git with a 2025-first mindset?"_
+Persephone (CLI tool `purr`) is an experimental lab exploring a simple question: _"What if we rebuilt Git with a 2025-first mindset?"_ It reimagines version control for modern hardware, massive repositories, and concurrent workloads.
 
 **Core Tenets:**
 
@@ -24,7 +29,17 @@ Persephone (CLI tool `purr`) is an experimental lab exploring a simple question:
 
 ---
 
+## Benchmarks ⚡
+
+We built Persephone with concurrency in mind. But just how much faster is it?
+
+Check out the **[TheRealShek/persephone-bench](https://github.com/TheRealShek/persephone-bench)** repository for detailed performance benchmarks comparing `purr` directly against classic `git`.
+
+---
+
 ## Installation
+
+### Option 1: Install Script (Linux)
 
 You can easily install the latest release on Linux (amd64/arm64) using the provided installation script:
 
@@ -32,11 +47,33 @@ You can easily install the latest release on Linux (amd64/arm64) using the provi
 curl -fsSL https://raw.githubusercontent.com/TheRealShek/persephone/main/install.sh | sh
 ```
 
----
+### Option 2: Manual (Linux & macOS)
 
-## Demo
+If you are on macOS or prefer to install manually, download the pre-compiled binary directly from the [Releases](https://github.com/TheRealShek/persephone/releases) page.
 
-![Persephone CLI Demo](assets/demo.gif)
+**1. Choose the correct download for your system:**
+
+- **Mac with Intel chip:** `persephone_darwin_amd64.tar.gz`
+- **Mac with Apple Silicon (M1/M2/M3):** `persephone_darwin_arm64.tar.gz`
+- **Linux (64-bit PC):** `persephone_linux_amd64.tar.gz`
+- **Linux (ARM/Raspberry Pi):** `persephone_linux_arm64.tar.gz`
+
+**2. Extract and install:**
+Once downloaded, extract the archive and move the `purr` binary to a folder in your `$PATH` (like `/usr/local/bin/`).
+
+```bash
+# 1. Download the archive (example for Linux AMD64)
+curl -LO https://github.com/TheRealShek/persephone/releases/latest/download/persephone_linux_amd64.tar.gz
+
+# 2. Extract it
+tar -xzf persephone_linux_amd64.tar.gz
+
+# 3. Move the binary into your PATH
+sudo mv purr /usr/local/bin/
+
+# 4. Verify installation
+purr --version
+```
 
 ---
 
