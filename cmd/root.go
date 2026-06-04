@@ -21,6 +21,11 @@ var rootCmd = &cobra.Command{
 	Long:  `Persephone is a version control system built in Go with performance and modern features in mind.`,
 }
 
+// SetVersion injects the build version into the root command, enabling the --version flag.
+func SetVersion(v string) {
+	rootCmd.Version = v
+}
+
 // Execute orchestrates command execution, handles standard error reporting, and configures CLI shell routing.
 // This is the primary entry point called by main.main().
 func Execute() {
