@@ -72,9 +72,9 @@ func TestAddAllPurrFiles_AbortsOnFailure_PreservesIndex(t *testing.T) {
 		t.Fatalf("Expected AddPurrFiles to fail due to broken symlink, but it succeeded")
 	}
 
-	// Verify the error mentions "purr add failed"
-	if err.Error()[:15] != "purr add failed" {
-		t.Errorf("Expected error to start with 'purr add failed', got: %v", err)
+	// Verify the error mentions "purr add completed"
+	if len(err.Error()) < 18 || err.Error()[:18] != "purr add completed" {
+		t.Errorf("Expected error to start with 'purr add completed', got: %v", err)
 	}
 
 	postState, _ := os.ReadFile(indexPath)

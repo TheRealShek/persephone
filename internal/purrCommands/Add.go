@@ -3,7 +3,6 @@ package purrCommands
 import (
 	"Persephone/internal/ui"
 	"Persephone/internal/utils"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // AddPurrFiles is the primary controller for staging files.
@@ -73,80 +73,101 @@ func addAllPurrFiles(path string) error {
 	}
 
 	numWorkers := runtime.NumCPU() * 5
-	semaphore := make(chan struct{}, numWorkers)
+	jobs := make(chan string, numWorkers*4)
 	var wg sync.WaitGroup
-	var mu sync.Mutex
+	var mu sync.RWMutex
+	var walkMu sync.Mutex
 	var processingErrs []error
-	var addedCount, skippedCount int
+	errCh := make(chan error, numWorkers)
+	errDone := make(chan struct{})
+	go func() {
+		for err := range errCh {
+			processingErrs = append(processingErrs, err)
+		}
+		close(errDone)
+	}()
+	var addedCount, skippedCount atomic.Int32
 	walkedMap := make(map[string]bool)
 
-	utils.WalkAndAddFiles(path, func(filePath string) error {
+	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
-		go func(tempPath string) {
+		go func() {
 			defer wg.Done()
-			semaphore <- struct{}{}        // Acquire token (blocks if active workers >= limit)
-			defer func() { <-semaphore }() // Release token back to the bucket
-
-			fileInfo, err := os.Stat(tempPath)
-			if err != nil {
-				mu.Lock()
-				processingErrs = append(processingErrs, fmt.Errorf("failed to stat %s: %w", tempPath, err))
-				mu.Unlock()
-				return
-			}
-
-			relPath, err := filepath.Rel(path, tempPath)
-			if err != nil {
-				mu.Lock()
-				processingErrs = append(processingErrs, fmt.Errorf("failed to get relative path for %s: %w", tempPath, err))
-				mu.Unlock()
-				return
-			}
-
-			mu.Lock()
-			walkedMap[relPath] = true
-			mu.Unlock()
-
-			// Stat cache comparison: skip hashing if Mtime is unchanged
-			mu.Lock()
-			existingEntry, exists := indexMap[relPath]
-			mu.Unlock()
-			if exists {
-				if fileInfo.ModTime().Equal(existingEntry.Mtime) &&
-					uint32(fileInfo.Size()) == existingEntry.Size {
-					mu.Lock()
-					skippedCount++
-					mu.Unlock()
-					return
+			for tempPath := range jobs {
+				fileInfo, err := os.Stat(tempPath)
+				if err != nil {
+					errCh <- fmt.Errorf("failed to stat %s: %w", tempPath, err)
+					continue
 				}
-			}
 
-			// Perform expensive I/O operations outside the lock context
-			hash, err := utils.WriteBlobWithSHA(path, tempPath)
-			if err != nil {
+				relPath, err := filepath.Rel(path, tempPath)
+				if err != nil {
+					errCh <- fmt.Errorf("failed to get relative path for %s: %w", tempPath, err)
+					continue
+				}
+
+				walkMu.Lock()
+				walkedMap[relPath] = true
+				walkMu.Unlock()
+
+				// Stat cache comparison: skip hashing if Mtime is unchanged
+				mu.RLock()
+				existingEntry, exists := indexMap[relPath]
+				shouldSkip := false
+				if exists {
+					if fileInfo.ModTime().Equal(existingEntry.Mtime) &&
+						uint32(fileInfo.Size()) == existingEntry.Size {
+						shouldSkip = true
+					}
+				}
+				mu.RUnlock()
+
+				if shouldSkip {
+					skippedCount.Add(1)
+					continue
+				}
+
+				// Perform expensive I/O operations outside the lock context
+				hash, err := utils.WriteBlobWithSHA(path, tempPath)
+				if err != nil {
+					errCh <- fmt.Errorf("failed to write blob for %s: %w", tempPath, err)
+					continue
+				}
+
+				newEntry := utils.PopulateAllIndexField(fileInfo, relPath)
+				newEntry.Sha1 = hash
+
+				// Mutex protected updates on the shared map
 				mu.Lock()
-				processingErrs = append(processingErrs, fmt.Errorf("failed to write blob for %s: %w", tempPath, err))
+				indexMap[relPath] = &newEntry
 				mu.Unlock()
-				return
+				addedCount.Add(1)
 			}
+		}()
+	}
 
-			newEntry := utils.PopulateAllIndexField(fileInfo, relPath)
-			newEntry.Sha1 = hash
-
-			// Mutex protected updates on the shared map
-			mu.Lock()
-			indexMap[relPath] = &newEntry
-			addedCount++
-			mu.Unlock()
-
-		}(filePath)
-		return nil
-	})
+	var walkErr error
+	go func() {
+		walkErr = utils.WalkAndAddFiles(path, func(filePath string) error {
+			jobs <- filePath
+			return nil
+		})
+		close(jobs)
+	}()
 
 	wg.Wait()
+	close(errCh)
+	<-errDone
+
+	if walkErr != nil {
+		fmt.Printf("%s\n", ui.Warningf("Directory walk encountered an error: %v", walkErr))
+	}
 
 	if len(processingErrs) > 0 {
-		return fmt.Errorf("purr add failed: %w", errors.Join(processingErrs...))
+		for _, err := range processingErrs {
+			fmt.Printf("%s\n", ui.Warningf("Worker error: %v", err))
+		}
+		return fmt.Errorf("purr add completed with %d error(s)", len(processingErrs))
 	}
 
 	for key := range indexMap {
@@ -170,8 +191,9 @@ func addAllPurrFiles(path string) error {
 		return fmt.Errorf("failed to write index: %w", err)
 	}
 
-	if addedCount > 0 {
-		fmt.Printf("%s\n", ui.Successf("Successfully added %d file(s) to index", addedCount))
+	addedVal := addedCount.Load()
+	if addedVal > 0 {
+		fmt.Printf("%s\n", ui.Successf("Successfully added %d file(s) to index", addedVal))
 	} else {
 		fmt.Println(ui.Metadata("No files were added to index"))
 	}
@@ -201,133 +223,154 @@ func addSpecificPurrFiles(path string, files []string) error {
 		indexMap[IndexEntries[i].Path] = &IndexEntries[i]
 	}
 
-	var addedCount, skippedCount, removedCount int
-	var mu sync.Mutex
+	var addedCount, skippedCount, removedCount atomic.Int32
+	var mu sync.RWMutex
+	var printMu sync.Mutex
 	var wg sync.WaitGroup
 	var processingErrs []error
 
 	numWorkers := runtime.NumCPU() * 5
-	semaphore := make(chan struct{}, numWorkers)
+	errCh := make(chan error, numWorkers)
+	errDone := make(chan struct{})
+	go func() {
+		for err := range errCh {
+			processingErrs = append(processingErrs, err)
+		}
+		close(errDone)
+	}()
+	jobs := make(chan string, numWorkers*4)
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for fp := range jobs {
+				cleanPath := filepath.Clean(fp)
+
+				// Robust check for hidden paths (e.g. "path/to/.hidden_file" or ".env")
+				pathParts := strings.Split(cleanPath, string(filepath.Separator))
+				isHidden := false
+				for _, part := range pathParts {
+					if len(part) > 0 && part[0] == '.' {
+						isHidden = true
+						break
+					}
+				}
+				if isHidden {
+					printMu.Lock()
+					fmt.Printf("%s %s\n", ui.Metadata("Skipping hidden file:"), ui.Metadata(cleanPath))
+					printMu.Unlock()
+					skippedCount.Add(1)
+					continue
+				}
+
+				absPath := cleanPath
+				if !filepath.IsAbs(cleanPath) {
+					absPath = filepath.Join(path, cleanPath)
+				}
+
+				fileInfo, err := os.Stat(absPath)
+				if err != nil {
+					if os.IsNotExist(err) {
+						relPath, relErr := filepath.Rel(path, absPath)
+						if relErr == nil {
+							mu.Lock()
+							_, exists := indexMap[relPath]
+							if exists {
+								delete(indexMap, relPath)
+							}
+							mu.Unlock()
+							if exists {
+								printMu.Lock()
+								fmt.Printf("removed %s from index\n", relPath)
+								printMu.Unlock()
+								removedCount.Add(1)
+							}
+						}
+						continue
+					}
+					errCh <- fmt.Errorf("cannot stat '%s': %w", fp, err)
+					continue
+				}
+
+				if fileInfo.IsDir() {
+					errCh <- fmt.Errorf("'%s' is a directory (use 'purr add .' to add all files)", fp)
+					continue
+				}
+
+				relPath, err := filepath.Rel(path, absPath)
+				if err != nil {
+					errCh <- fmt.Errorf("failed to get relative path for '%s': %w", fp, err)
+					continue
+				}
+
+				// Security check: block path traversal attempts to stage files outside the repo root
+				if strings.HasPrefix(relPath, "..") {
+					errCh <- fmt.Errorf("'%s' is outside repository", fp)
+					continue
+				}
+
+				mu.RLock()
+				existingEntry, exists := indexMap[relPath]
+				shouldSkip := false
+				if exists {
+					if fileInfo.ModTime().Equal(existingEntry.Mtime) &&
+						uint32(fileInfo.Size()) == existingEntry.Size {
+						shouldSkip = true
+					}
+				}
+				mu.RUnlock()
+
+				if shouldSkip {
+					printMu.Lock()
+					fmt.Printf("%s %s\n", ui.Modified("Unchanged:"), ui.StyledPath(relPath))
+					printMu.Unlock()
+					skippedCount.Add(1)
+					continue
+				}
+
+				hash, err := utils.WriteBlobWithSHA(path, absPath)
+				if err != nil {
+					errCh <- fmt.Errorf("failed to create blob for '%s': %w", fp, err)
+					continue
+				}
+
+				newEntry := utils.PopulateAllIndexField(fileInfo, relPath)
+				newEntry.Sha1 = hash
+
+				mu.Lock()
+				indexMap[relPath] = &newEntry
+				mu.Unlock()
+
+				printMu.Lock()
+				fmt.Printf("%s %s\n", ui.Added("Added:"), ui.StyledPath(relPath))
+				printMu.Unlock()
+				addedCount.Add(1)
+			}
+		}()
+	}
 
 	for _, filePath := range files {
-		wg.Add(1)
-		go func(fp string) {
-			defer wg.Done()
-			semaphore <- struct{}{}
-			defer func() { <-semaphore }()
-
-			cleanPath := filepath.Clean(fp)
-
-			// Robust check for hidden paths (e.g. "path/to/.hidden_file" or ".env")
-			pathParts := strings.Split(cleanPath, string(filepath.Separator))
-			isHidden := false
-			for _, part := range pathParts {
-				if len(part) > 0 && part[0] == '.' {
-					isHidden = true
-					break
-				}
-			}
-			if isHidden {
-				mu.Lock()
-				fmt.Printf("%s %s\n", ui.Metadata("Skipping hidden file:"), ui.Metadata(cleanPath))
-				skippedCount++
-				mu.Unlock()
-				return
-			}
-
-			absPath := cleanPath
-			if !filepath.IsAbs(cleanPath) {
-				absPath = filepath.Join(path, cleanPath)
-			}
-
-			fileInfo, err := os.Stat(absPath)
-			if err != nil {
-				if os.IsNotExist(err) {
-					relPath, relErr := filepath.Rel(path, absPath)
-					if relErr == nil {
-						mu.Lock()
-						if _, exists := indexMap[relPath]; exists {
-							delete(indexMap, relPath)
-							fmt.Printf("removed %s from index\n", relPath)
-							removedCount++
-						}
-						mu.Unlock()
-					}
-					return
-				}
-				mu.Lock()
-				processingErrs = append(processingErrs, fmt.Errorf("cannot stat '%s': %w", fp, err))
-				mu.Unlock()
-				return
-			}
-
-			if fileInfo.IsDir() {
-				mu.Lock()
-				processingErrs = append(processingErrs, fmt.Errorf("'%s' is a directory (use 'purr add .' to add all files)", fp))
-				mu.Unlock()
-				return
-			}
-
-			relPath, err := filepath.Rel(path, absPath)
-			if err != nil {
-				mu.Lock()
-				processingErrs = append(processingErrs, fmt.Errorf("failed to get relative path for '%s': %w", fp, err))
-				mu.Unlock()
-				return
-			}
-
-			// Security check: block path traversal attempts to stage files outside the repo root
-			if strings.HasPrefix(relPath, "..") {
-				mu.Lock()
-				processingErrs = append(processingErrs, fmt.Errorf("'%s' is outside repository", fp))
-				mu.Unlock()
-				return
-			}
-
-			mu.Lock()
-			existingEntry, exists := indexMap[relPath]
-			shouldSkip := false
-			if exists {
-				if fileInfo.ModTime().Equal(existingEntry.Mtime) &&
-					uint32(fileInfo.Size()) == existingEntry.Size {
-					fmt.Printf("%s %s\n", ui.Modified("Unchanged:"), ui.StyledPath(relPath))
-					skippedCount++
-					shouldSkip = true
-				}
-			}
-			mu.Unlock()
-
-			if shouldSkip {
-				return
-			}
-
-			hash, err := utils.WriteBlobWithSHA(path, absPath)
-			if err != nil {
-				mu.Lock()
-				processingErrs = append(processingErrs, fmt.Errorf("failed to create blob for '%s': %w", fp, err))
-				mu.Unlock()
-				return
-			}
-
-			newEntry := utils.PopulateAllIndexField(fileInfo, relPath)
-			newEntry.Sha1 = hash
-
-			mu.Lock()
-			indexMap[relPath] = &newEntry
-			fmt.Printf("%s %s\n", ui.Added("Added:"), ui.StyledPath(relPath))
-			addedCount++
-			mu.Unlock()
-
-		}(filePath)
+		jobs <- filePath
 	}
+	close(jobs)
 
 	wg.Wait()
+	close(errCh)
+	<-errDone
 
 	if len(processingErrs) > 0 {
-		return fmt.Errorf("purr add failed: %w", errors.Join(processingErrs...))
+		for _, err := range processingErrs {
+			fmt.Printf("%s\n", ui.Warningf("Worker error: %v", err))
+		}
+		return fmt.Errorf("purr add completed with %d error(s)", len(processingErrs))
 	}
 
-	if addedCount > 0 || removedCount > 0 {
+	addedVal := addedCount.Load()
+	skippedVal := skippedCount.Load()
+	removedVal := removedCount.Load()
+
+	if addedVal > 0 || removedVal > 0 {
 		var updatedEntries []utils.IndexEntry
 		for _, entry := range indexMap {
 			updatedEntries = append(updatedEntries, *entry)
@@ -342,13 +385,13 @@ func addSpecificPurrFiles(path string, files []string) error {
 			return fmt.Errorf("failed to write index: %w", err)
 		}
 
-		if addedCount > 0 {
-			fmt.Printf("\n%s", ui.Successf("Successfully added %d file(s) to index", addedCount))
+		if addedVal > 0 {
+			fmt.Printf("\n%s", ui.Successf("Successfully added %d file(s) to index", addedVal))
 		}
-		if skippedCount > 0 {
-			fmt.Printf(" %s", ui.Metadataf("(%d skipped)", skippedCount))
+		if skippedVal > 0 {
+			fmt.Printf(" %s", ui.Metadataf("(%d skipped)", skippedVal))
 		}
-		if addedCount > 0 || skippedCount > 0 {
+		if addedVal > 0 || skippedVal > 0 {
 			fmt.Println()
 		}
 	} else {
