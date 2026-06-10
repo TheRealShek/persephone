@@ -41,7 +41,25 @@ func UpdateHEAD(rootDir string, commitHash string) error {
 	if strings.HasPrefix(ref, "ref:") {
 		branchRef := strings.TrimSpace(strings.TrimPrefix(ref, "ref:"))
 		branchPath := filepath.Join(rootDir, ".purr", branchRef)
-		return os.WriteFile(branchPath, []byte(commitHash+"\n"), 0644)
+		tmpPath := branchPath + ".tmp"
+		if err := os.WriteFile(tmpPath, []byte(commitHash+"\n"), 0644); err != nil {
+			os.Remove(tmpPath)
+			return err
+		}
+		if err := os.Rename(tmpPath, branchPath); err != nil {
+			os.Remove(tmpPath)
+			return err
+		}
+		return nil
 	}
-	return os.WriteFile(headPath, []byte(commitHash+"\n"), 0644)
+	tmpPath := headPath + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(commitHash+"\n"), 0644); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, headPath); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }

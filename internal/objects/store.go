@@ -22,5 +22,14 @@ func StoreObject(rootDir string, hashStr string, data []byte) error {
 	if mkdirErr != nil {
 		return mkdirErr
 	}
-	return os.WriteFile(objectPath, data, 0644)
+	tmpPath := objectPath + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, objectPath); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }

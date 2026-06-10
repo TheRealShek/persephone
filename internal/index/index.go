@@ -126,6 +126,17 @@ func ReadIndex(indexPath string) ([]IndexEntry, error) {
 // Crash Safety: Writes to a temporary `.lock` file first, then atomically renames. This prevents
 // index corruption if the process crashes mid-write.
 func WriteIndex(indexPath string, entries []IndexEntry) error {
+	procLockPath := indexPath + ".proc_lock"
+	f, err := os.OpenFile(procLockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("index is locked by another process")
+		}
+		return err
+	}
+	f.Close()
+	defer os.Remove(procLockPath)
+
 	var buf bytes.Buffer
 	// Pre-allocate: 12 byte header + ~80 bytes per entry (64 fixed + avg path length)
 	buf.Grow(12 + len(entries)*80)
