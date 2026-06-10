@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"Persephone/internal/index"
 	"Persephone/internal/purrCommands"
 	"Persephone/internal/testutils"
-	"Persephone/internal/utils"
 )
 
 func TestRemovePurrFiles_RemovesTrackedFile(t *testing.T) {
@@ -39,7 +39,7 @@ func TestRemovePurrFiles_RemovesTrackedFile(t *testing.T) {
 		t.Fatalf("expected %s to be removed from disk, got err=%v", filePath, err)
 	}
 
-	entries, err := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, err := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if err != nil {
 		t.Fatalf("failed to read index: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestRemovePurrFiles_NormalizesRelativePaths(t *testing.T) {
 		t.Fatalf("RemovePurrFiles failed for normalized path: %v", err)
 	}
 
-	entries, err := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, err := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if err != nil {
 		t.Fatalf("failed to read index: %v", err)
 	}

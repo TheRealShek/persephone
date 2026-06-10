@@ -1,9 +1,11 @@
 package purrCommands_test
 
 import (
+	"Persephone/internal/objects"
 	"Persephone/internal/purrCommands"
+	"Persephone/internal/refs"
 	"Persephone/internal/testutils"
-	"Persephone/internal/utils"
+
 	"compress/zlib"
 	"io"
 	"os"
@@ -50,7 +52,7 @@ func addAndCommit(t *testing.T, repo string, files map[string]string, message st
 		t.Fatalf("CommitPurrFiles() error = %v", err)
 	}
 
-	hash, err := utils.GetHEADCommit(repo)
+	hash, err := refs.GetHEADCommit(repo)
 	if err != nil {
 		t.Fatalf("GetHEADCommit() error = %v", err)
 	}
@@ -95,7 +97,7 @@ func TestCommitPurrFiles_SecondCommit(t *testing.T) {
 		t.Fatalf("CommitPurrFiles() second commit error = %v", err)
 	}
 
-	hash2, err := utils.GetHEADCommit(repo)
+	hash2, err := refs.GetHEADCommit(repo)
 	if err != nil {
 		t.Fatalf("GetHEADCommit() error = %v", err)
 	}
@@ -168,7 +170,7 @@ func TestCommitPurrFiles_TreeObjectStored(t *testing.T) {
 	}, "tree object test")
 
 	// Read the commit to extract its tree hash
-	treeHash, err := utils.GetCommitTreeHash(repo, hash)
+	treeHash, err := objects.GetCommitTreeHash(repo, hash)
 	if err != nil {
 		t.Fatalf("GetCommitTreeHash() error = %v", err)
 	}
@@ -231,7 +233,7 @@ func TestCommitPurrFiles_CreatesSubtrees(t *testing.T) {
 	}, "subtree test")
 
 	// Read root tree hash from commit
-	treeHash, err := utils.GetCommitTreeHash(repo, hash)
+	treeHash, err := objects.GetCommitTreeHash(repo, hash)
 	if err != nil {
 		t.Fatalf("GetCommitTreeHash() error = %v", err)
 	}

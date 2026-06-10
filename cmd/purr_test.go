@@ -1,9 +1,13 @@
 package cmd_test
 
 import (
+	"Persephone/internal/hash"
+	"Persephone/internal/index"
+	"Persephone/internal/objects"
 	"Persephone/internal/purrCommands"
+	"Persephone/internal/refs"
 	"Persephone/internal/testutils"
-	"Persephone/internal/utils"
+
 	"os"
 	"path/filepath"
 	"testing"
@@ -50,7 +54,7 @@ func TestFullWorkflow_InitAddCommit(t *testing.T) {
 	}
 
 	// Verify Index
-	entries, _ := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, _ := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if len(entries) != 2 {
 		t.Fatalf("Expected 2 files in index, got %d", len(entries))
 	}
@@ -62,7 +66,7 @@ func TestFullWorkflow_InitAddCommit(t *testing.T) {
 	}
 
 	// Verify HEAD is updated
-	headCommit, err := utils.GetHEADCommit(repo)
+	headCommit, err := refs.GetHEADCommit(repo)
 	if err != nil {
 		t.Fatalf("Failed to read HEAD: %v", err)
 	}
@@ -98,7 +102,7 @@ func TestFullWorkflow_DoubleCommit(t *testing.T) {
 		t.Fatalf("First commit failed: %v", err)
 	}
 
-	firstHead, err := utils.GetHEADCommit(repo)
+	firstHead, err := refs.GetHEADCommit(repo)
 	if err != nil {
 		t.Fatalf("Failed to read HEAD after first commit: %v", err)
 	}
@@ -114,7 +118,7 @@ func TestFullWorkflow_DoubleCommit(t *testing.T) {
 		t.Fatalf("Second commit failed: %v", err)
 	}
 
-	secondHead, err := utils.GetHEADCommit(repo)
+	secondHead, err := refs.GetHEADCommit(repo)
 	if err != nil {
 		t.Fatalf("Failed to read HEAD after second commit: %v", err)
 	}
@@ -200,7 +204,7 @@ func TestFullWorkflow_AddSpecificThenAll(t *testing.T) {
 		t.Fatalf("Specific add failed: %v", err)
 	}
 
-	entries, _ := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, _ := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if len(entries) != 1 {
 		t.Fatalf("Expected 1 file after specific add, got %d", len(entries))
 	}
@@ -210,7 +214,7 @@ func TestFullWorkflow_AddSpecificThenAll(t *testing.T) {
 		t.Fatalf("Add all failed: %v", err)
 	}
 
-	entries, _ = utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, _ = index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if len(entries) != 3 {
 		t.Fatalf("Expected 3 files after add all, got %d", len(entries))
 	}
@@ -262,7 +266,7 @@ func TestFullWorkflow_CommitWithNewFile(t *testing.T) {
 		t.Fatalf("First commit failed: %v", err)
 	}
 
-	firstHead, _ := utils.GetHEADCommit(repo)
+	firstHead, _ := refs.GetHEADCommit(repo)
 
 	// Second commit adding a new file (original unchanged)
 	testutils.WriteTestFile(t, repo, "new_file.txt", "new content")
@@ -273,14 +277,14 @@ func TestFullWorkflow_CommitWithNewFile(t *testing.T) {
 		t.Fatalf("Second commit failed: %v", err)
 	}
 
-	secondHead, _ := utils.GetHEADCommit(repo)
+	secondHead, _ := refs.GetHEADCommit(repo)
 
 	if firstHead == secondHead {
 		t.Error("Adding a new file should produce a different commit hash")
 	}
 
 	// Verify index has 2 entries
-	entries, _ := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, _ := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if len(entries) != 2 {
 		t.Errorf("Expected 2 entries in index, got %d", len(entries))
 	}
@@ -301,7 +305,7 @@ func TestFullWorkflow_DeletionCommit(t *testing.T) {
 	if err := purrCommands.CommitPurrFiles(repo, "First commit", "Test User", "test@example.com"); err != nil {
 		t.Fatalf("First commit failed: %v", err)
 	}
-	firstHead, _ := utils.GetHEADCommit(repo)
+	firstHead, _ := refs.GetHEADCommit(repo)
 
 	// 2. Delete file, add and commit
 	os.Remove(filePath)
@@ -311,20 +315,20 @@ func TestFullWorkflow_DeletionCommit(t *testing.T) {
 	if err := purrCommands.CommitPurrFiles(repo, "Second commit", "Test User", "test@example.com"); err != nil {
 		t.Fatalf("Second commit failed: %v", err)
 	}
-	secondHead, _ := utils.GetHEADCommit(repo)
+	secondHead, _ := refs.GetHEADCommit(repo)
 
 	if firstHead == secondHead {
 		t.Fatalf("Commit hashes identical; deletion was not recorded")
 	}
 
 	// 3. Verify Tree hash of the second commit represents an empty tree
-	treeHash, err := utils.GetCommitTreeHash(repo, secondHead)
+	treeHash, err := objects.GetCommitTreeHash(repo, secondHead)
 	if err != nil {
 		t.Fatalf("Failed to read second commit tree hash: %v", err)
 	}
 
 	// Let's compute what an empty tree hash should be
-	emptyTreeHash, _ := utils.ComputeTreeSHA1(repo, []*utils.TreeEntries{})
+	emptyTreeHash, _ := hash.ComputeTreeSHA1(repo, []*objects.TreeEntries{})
 
 	if treeHash != emptyTreeHash {
 		t.Errorf("Expected second commit to have empty tree hash %q, got %q", emptyTreeHash, treeHash)

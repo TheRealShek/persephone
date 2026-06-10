@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"Persephone/internal/config"
 	"Persephone/internal/purrCommands"
-	"Persephone/internal/utils"
 )
 
 // setConfigEnv is a helper that points PURR_CONFIG_PATH to an isolated temp file
@@ -21,13 +21,13 @@ func setConfigEnv(t *testing.T) string {
 }
 
 // readConfigFile is a helper that reads and unmarshals the config file at path.
-func readConfigFile(t *testing.T, path string) utils.PurrConfig {
+func readConfigFile(t *testing.T, path string) config.PurrConfig {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read config file: %v", err)
 	}
-	var cfg utils.PurrConfig
+	var cfg config.PurrConfig
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		t.Fatalf("failed to unmarshal config: %v", err)
 	}

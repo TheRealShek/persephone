@@ -1,8 +1,10 @@
 package purrCommands
 
 import (
+	"Persephone/internal/fsutil"
+	"Persephone/internal/index"
 	"Persephone/internal/ui"
-	"Persephone/internal/utils"
+
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,7 +16,7 @@ import (
 // The command treats paths as repo-relative so removals stay scoped to the current repository root.
 func RemovePurrFiles(arg ...string) error {
 	targetDir := filepath.Join(".", ".purr")
-	ok, err := utils.ExistsAndIsDirectory(targetDir)
+	ok, err := fsutil.ExistsAndIsDirectory(targetDir)
 	if err != nil {
 		return fmt.Errorf("failed to check repository: %w", err)
 	}
@@ -33,12 +35,12 @@ func RemovePurrFiles(arg ...string) error {
 	}
 
 	indexPath := filepath.Join(dirPath, ".purr", "index")
-	entries, err := utils.ReadIndex(indexPath)
+	entries, err := index.ReadIndex(indexPath)
 	if err != nil {
 		return fmt.Errorf("failed to read index: %w", err)
 	}
 
-	indexMap := make(map[string]*utils.IndexEntry)
+	indexMap := make(map[string]*index.IndexEntry)
 	for i := range entries {
 		indexMap[entries[i].Path] = &entries[i]
 	}
@@ -95,7 +97,7 @@ func RemovePurrFiles(arg ...string) error {
 		fmt.Printf("%s %s\n", ui.Removed("Removed:"), ui.StyledPath(relPath))
 	}
 
-	var updatedEntries []utils.IndexEntry
+	var updatedEntries []index.IndexEntry
 	for _, entry := range indexMap {
 		updatedEntries = append(updatedEntries, *entry)
 	}
@@ -104,7 +106,7 @@ func RemovePurrFiles(arg ...string) error {
 		return updatedEntries[i].Path < updatedEntries[j].Path
 	})
 
-	if err := utils.WriteIndex(indexPath, updatedEntries); err != nil {
+	if err := index.WriteIndex(indexPath, updatedEntries); err != nil {
 		return fmt.Errorf("failed to write index: %w", err)
 	}
 

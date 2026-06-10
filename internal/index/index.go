@@ -1,4 +1,4 @@
-package utils
+package index
 
 import (
 	"bytes"
@@ -182,4 +182,3 @@ func WriteIndex(indexPath string, entries []IndexEntry) error {
 
 	return nil
 }
-

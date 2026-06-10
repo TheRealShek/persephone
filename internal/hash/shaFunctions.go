@@ -1,4 +1,4 @@
-package utils
+package hash
 
 import (
 	"bytes"
@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"Persephone/internal/objects"
 )
 
 // WriteBlobWithSHA reads a file, serializes it into a Git-compatible blob object,
@@ -84,7 +86,7 @@ func WriteBlobWithSHA(rootDir string, filePath string) ([20]byte, error) {
 	}
 
 	// Write compressed object payload to the content-addressable database
-	if err := StoreObject(rootDir, hashStr, compressed.Bytes()); err != nil {
+	if err := objects.StoreObject(rootDir, hashStr, compressed.Bytes()); err != nil {
 		return [20]byte{}, err
 	}
 
@@ -92,10 +94,10 @@ func WriteBlobWithSHA(rootDir string, filePath string) ([20]byte, error) {
 }
 
 // ComputeTreeSHA1 generates a Git-compatible tree object from staged files and hashes it.
-// It delegates construction to BuildTreeObject to get sorted deterministic binary formatting.
+// It delegates construction to objects.BuildTreeObject to get sorted deterministic binary formatting.
 // The tree SHA-1 represents the direct state of directory hierarchy at the time of commit.
-func ComputeTreeSHA1(rootDir string, entries []*TreeEntries) (string, error) {
-	treeObj, err := BuildTreeObject(rootDir, entries)
+func ComputeTreeSHA1(rootDir string, entries []*objects.TreeEntries) (string, error) {
+	treeObj, err := objects.BuildTreeObject(rootDir, entries)
 	if err != nil {
 		return "", err
 	}
@@ -103,4 +105,3 @@ func ComputeTreeSHA1(rootDir string, entries []*TreeEntries) (string, error) {
 	sha := sha1.Sum(treeObj)
 	return hex.EncodeToString(sha[:]), nil
 }
-

@@ -86,4 +86,3 @@ func NewFilePicker(title string, files []string) list.Model {
 
 	return NewPicker(title, items)
 }
-

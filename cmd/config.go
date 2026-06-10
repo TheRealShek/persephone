@@ -33,4 +33,3 @@ Examples:
 func init() {
 	rootCmd.AddCommand(configCmd)
 }
-

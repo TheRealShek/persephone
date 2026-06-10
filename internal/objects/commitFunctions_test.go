@@ -1,6 +1,8 @@
-package utils
+package objects
 
 import (
+	"Persephone/internal/config"
+	"Persephone/internal/refs"
 	"bytes"
 	"compress/zlib"
 	"crypto/sha1"
@@ -92,7 +94,7 @@ func TestBuildCommitObject(t *testing.T) {
 			name: "Missing Tree Hash",
 			commit: &CommitObj{
 				Message:   "msg",
-				Author:    PurrConfig{UserName: "A", UserEmail: "B"},
+				Author:    config.PurrConfig{UserName: "A", UserEmail: "B"},
 				Timestamp: testTime,
 			},
 			expectError: true,
@@ -102,7 +104,7 @@ func TestBuildCommitObject(t *testing.T) {
 			commit: &CommitObj{
 				TreeHash: "treehash",
 				Message:  "msg",
-				Author:   PurrConfig{UserName: "A", UserEmail: "B"},
+				Author:   config.PurrConfig{UserName: "A", UserEmail: "B"},
 			},
 			expectError: true,
 		},
@@ -111,8 +113,8 @@ func TestBuildCommitObject(t *testing.T) {
 			commit: &CommitObj{
 				TreeHash:   "tree123",
 				ParentHash: "parent123",
-				Author:     PurrConfig{UserName: "Jane Doe", UserEmail: "jane@example.com"},
-				Committer:  PurrConfig{UserName: "Jane Doe", UserEmail: "jane@example.com"},
+				Author:     config.PurrConfig{UserName: "Jane Doe", UserEmail: "jane@example.com"},
+				Committer:  config.PurrConfig{UserName: "Jane Doe", UserEmail: "jane@example.com"},
 				Message:    "Initial commit",
 				Timestamp:  testTime,
 			},
@@ -231,8 +233,8 @@ func TestComputeCommitSHA1_Deterministic(t *testing.T) {
 		return &CommitObj{
 			TreeHash:   strings.Repeat("a", 40),
 			ParentHash: strings.Repeat("b", 40),
-			Author:     PurrConfig{UserName: "Test User", UserEmail: "test@example.com"},
-			Committer:  PurrConfig{UserName: "Test User", UserEmail: "test@example.com"},
+			Author:     config.PurrConfig{UserName: "Test User", UserEmail: "test@example.com"},
+			Committer:  config.PurrConfig{UserName: "Test User", UserEmail: "test@example.com"},
 			Message:    "deterministic test",
 			Timestamp:  testTime,
 		}
@@ -262,15 +264,15 @@ func TestComputeCommitSHA1_DifferentMessages_DifferentHash(t *testing.T) {
 
 	commitA := &CommitObj{
 		TreeHash:  strings.Repeat("a", 40),
-		Author:    PurrConfig{UserName: "User", UserEmail: "user@example.com"},
-		Committer: PurrConfig{UserName: "User", UserEmail: "user@example.com"},
+		Author:    config.PurrConfig{UserName: "User", UserEmail: "user@example.com"},
+		Committer: config.PurrConfig{UserName: "User", UserEmail: "user@example.com"},
 		Message:   "message alpha",
 		Timestamp: testTime,
 	}
 	commitB := &CommitObj{
 		TreeHash:  strings.Repeat("a", 40),
-		Author:    PurrConfig{UserName: "User", UserEmail: "user@example.com"},
-		Committer: PurrConfig{UserName: "User", UserEmail: "user@example.com"},
+		Author:    config.PurrConfig{UserName: "User", UserEmail: "user@example.com"},
+		Committer: config.PurrConfig{UserName: "User", UserEmail: "user@example.com"},
 		Message:   "message beta",
 		Timestamp: testTime,
 	}
@@ -308,9 +310,9 @@ func setupPurrDir(t *testing.T, root string) {
 func TestGetHEADCommit_FirstCommit(t *testing.T) {
 	root := t.TempDir()
 	// No .purr/HEAD at all — should return empty string (first commit)
-	parent, err := GetHEADCommit(root)
+	parent, err := refs.GetHEADCommit(root)
 	if err != nil {
-		t.Fatalf("GetHEADCommit() unexpected error: %v", err)
+		t.Fatalf("refs.GetHEADCommit() unexpected error: %v", err)
 	}
 	if parent != "" {
 		t.Errorf("expected empty parent for first commit, got: %q", parent)
@@ -335,9 +337,9 @@ func TestGetHEADCommit_WithExistingCommit(t *testing.T) {
 		t.Fatalf("failed to write branch ref: %v", err)
 	}
 
-	parent, err := GetHEADCommit(root)
+	parent, err := refs.GetHEADCommit(root)
 	if err != nil {
-		t.Fatalf("GetHEADCommit() unexpected error: %v", err)
+		t.Fatalf("refs.GetHEADCommit() unexpected error: %v", err)
 	}
 	if parent != commitHash {
 		t.Errorf("expected parent %q, got %q", commitHash, parent)
@@ -414,8 +416,8 @@ func TestGetCommitTreeHash_ValidCommit(t *testing.T) {
 	// Build a commit object
 	commit := &CommitObj{
 		TreeHash:  treeHash,
-		Author:    PurrConfig{UserName: "Test", UserEmail: "test@example.com"},
-		Committer: PurrConfig{UserName: "Test", UserEmail: "test@example.com"},
+		Author:    config.PurrConfig{UserName: "Test", UserEmail: "test@example.com"},
+		Committer: config.PurrConfig{UserName: "Test", UserEmail: "test@example.com"},
 		Message:   "test commit",
 		Timestamp: testTime,
 	}
@@ -460,8 +462,8 @@ func TestBuildCommitObject_NoParent(t *testing.T) {
 
 	commit := &CommitObj{
 		TreeHash:  strings.Repeat("a", 40),
-		Author:    PurrConfig{UserName: "Author", UserEmail: "author@example.com"},
-		Committer: PurrConfig{UserName: "Author", UserEmail: "author@example.com"},
+		Author:    config.PurrConfig{UserName: "Author", UserEmail: "author@example.com"},
+		Committer: config.PurrConfig{UserName: "Author", UserEmail: "author@example.com"},
 		Message:   "initial commit with no parent",
 		Timestamp: testTime,
 	}
@@ -495,8 +497,8 @@ func TestBuildCommitObject_MissingMessage(t *testing.T) {
 	commit := &CommitObj{
 		TreeHash:  strings.Repeat("a", 40),
 		Message:   "", // empty message
-		Author:    PurrConfig{UserName: "User", UserEmail: "user@example.com"},
-		Committer: PurrConfig{UserName: "User", UserEmail: "user@example.com"},
+		Author:    config.PurrConfig{UserName: "User", UserEmail: "user@example.com"},
+		Committer: config.PurrConfig{UserName: "User", UserEmail: "user@example.com"},
 		Timestamp: testTime,
 	}
 
@@ -518,8 +520,8 @@ func TestBuildCommitObject_MissingAuthor(t *testing.T) {
 			commit: &CommitObj{
 				TreeHash:  strings.Repeat("a", 40),
 				Message:   "test",
-				Author:    PurrConfig{UserName: "", UserEmail: "user@example.com"},
-				Committer: PurrConfig{UserName: "User", UserEmail: "user@example.com"},
+				Author:    config.PurrConfig{UserName: "", UserEmail: "user@example.com"},
+				Committer: config.PurrConfig{UserName: "User", UserEmail: "user@example.com"},
 				Timestamp: testTime,
 			},
 		},
@@ -528,8 +530,8 @@ func TestBuildCommitObject_MissingAuthor(t *testing.T) {
 			commit: &CommitObj{
 				TreeHash:  strings.Repeat("a", 40),
 				Message:   "test",
-				Author:    PurrConfig{UserName: "User", UserEmail: ""},
-				Committer: PurrConfig{UserName: "User", UserEmail: "user@example.com"},
+				Author:    config.PurrConfig{UserName: "User", UserEmail: ""},
+				Committer: config.PurrConfig{UserName: "User", UserEmail: "user@example.com"},
 				Timestamp: testTime,
 			},
 		},
@@ -538,8 +540,8 @@ func TestBuildCommitObject_MissingAuthor(t *testing.T) {
 			commit: &CommitObj{
 				TreeHash:  strings.Repeat("a", 40),
 				Message:   "test",
-				Author:    PurrConfig{},
-				Committer: PurrConfig{UserName: "User", UserEmail: "user@example.com"},
+				Author:    config.PurrConfig{},
+				Committer: config.PurrConfig{UserName: "User", UserEmail: "user@example.com"},
 				Timestamp: testTime,
 			},
 		},
@@ -559,7 +561,7 @@ func TestBuildCommitObject_MissingCommitter(t *testing.T) {
 	testTime := time.Date(2025, 3, 15, 8, 0, 0, 0, time.UTC)
 	commit := &CommitObj{
 		TreeHash:  strings.Repeat("a", 40),
-		Author:    PurrConfig{UserName: "Author", UserEmail: "author@example.com"},
+		Author:    config.PurrConfig{UserName: "Author", UserEmail: "author@example.com"},
 		Message:   "missing committer",
 		Timestamp: testTime,
 	}

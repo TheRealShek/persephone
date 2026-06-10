@@ -1,4 +1,4 @@
-package utils
+package objects
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"Persephone/internal/config"
 	"Persephone/internal/ui"
 )
 
@@ -247,7 +248,7 @@ func UpdateBranchRef(repoPath, commitSHA1 string) error {
 // Since commits require author metadata (UserName and UserEmail) to construct valid headers,
 // this validation prevents anonymous commits early and guides the user via a friendly hint.
 func CheckConfigFile() (string, string, error) {
-	config, err := ReadConfig()
+	config, err := config.ReadConfig()
 	if err != nil {
 		return "", "", fmt.Errorf("error reading config: %w", err)
 	}
@@ -388,29 +389,29 @@ func ReadCommitObject(rootDir string, commitHash string) (*CommitObj, error) {
 // parseCommitIdentity reads the trailing timestamp fields from Git-style identity metadata while
 // preserving spaces in developer names. Persephone currently writes UTC offsets and records the
 // author timestamp on CommitObj because author and committer timestamps are generated together.
-func parseCommitIdentity(value string) (PurrConfig, time.Time, error) {
+func parseCommitIdentity(value string) (config.PurrConfig, time.Time, error) {
 	emailStart := strings.LastIndex(value, " <")
 	emailEnd := strings.LastIndex(value, "> ")
 	if emailStart <= 0 || emailEnd <= emailStart+2 {
-		return PurrConfig{}, time.Time{}, fmt.Errorf("expected name <email> timestamp timezone")
+		return config.PurrConfig{}, time.Time{}, fmt.Errorf("expected name <email> timestamp timezone")
 	}
 
 	name := value[:emailStart]
 	email := value[emailStart+2 : emailEnd]
 	timeFields := strings.Fields(value[emailEnd+2:])
 	if name == "" || email == "" || len(timeFields) != 2 {
-		return PurrConfig{}, time.Time{}, fmt.Errorf("expected name <email> timestamp timezone")
+		return config.PurrConfig{}, time.Time{}, fmt.Errorf("expected name <email> timestamp timezone")
 	}
 
 	unixTimestamp, err := strconv.ParseInt(timeFields[0], 10, 64)
 	if err != nil {
-		return PurrConfig{}, time.Time{}, fmt.Errorf("invalid unix timestamp")
+		return config.PurrConfig{}, time.Time{}, fmt.Errorf("invalid unix timestamp")
 	}
 	if timeFields[1] != "+0000" {
-		return PurrConfig{}, time.Time{}, fmt.Errorf("unsupported timezone %q", timeFields[1])
+		return config.PurrConfig{}, time.Time{}, fmt.Errorf("unsupported timezone %q", timeFields[1])
 	}
 
-	return PurrConfig{UserName: name, UserEmail: email}, time.Unix(unixTimestamp, 0).UTC(), nil
+	return config.PurrConfig{UserName: name, UserEmail: email}, time.Unix(unixTimestamp, 0).UTC(), nil
 }
 
 func isSHA1Hex(hash string) bool {

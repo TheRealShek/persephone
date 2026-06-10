@@ -1,6 +1,7 @@
-package utils
+package hash
 
 import (
+	"Persephone/internal/objects"
 	"bytes"
 	"compress/zlib"
 	"crypto/sha1"
@@ -156,7 +157,7 @@ func TestWriteBlobWithSHA_EmptyFile(t *testing.T) {
 }
 
 func TestComputeTreeSHA1_DeterministicHash(t *testing.T) {
-	entries := []*TreeEntries{
+	entries := []*objects.TreeEntries{
 		{Mode: "100644", Name: "file1.txt", Sha1Hex: strings.Repeat("a", 40)},
 		{Mode: "100644", Name: "file2.txt", Sha1Hex: strings.Repeat("b", 40)},
 	}
@@ -167,7 +168,7 @@ func TestComputeTreeSHA1_DeterministicHash(t *testing.T) {
 	}
 
 	// Rebuild entries to avoid any state from sorting side-effects
-	entries2 := []*TreeEntries{
+	entries2 := []*objects.TreeEntries{
 		{Mode: "100644", Name: "file1.txt", Sha1Hex: strings.Repeat("a", 40)},
 		{Mode: "100644", Name: "file2.txt", Sha1Hex: strings.Repeat("b", 40)},
 	}
@@ -188,10 +189,10 @@ func TestComputeTreeSHA1_DeterministicHash(t *testing.T) {
 }
 
 func TestComputeTreeSHA1_DifferentEntries_DifferentHash(t *testing.T) {
-	entriesA := []*TreeEntries{
+	entriesA := []*objects.TreeEntries{
 		{Mode: "100644", Name: "alpha.txt", Sha1Hex: strings.Repeat("a", 40)},
 	}
-	entriesB := []*TreeEntries{
+	entriesB := []*objects.TreeEntries{
 		{Mode: "100644", Name: "beta.txt", Sha1Hex: strings.Repeat("b", 40)},
 	}
 
@@ -211,7 +212,7 @@ func TestComputeTreeSHA1_DifferentEntries_DifferentHash(t *testing.T) {
 }
 
 func TestComputeTreeSHA1_EmptyEntries(t *testing.T) {
-	hash, err := ComputeTreeSHA1(".", []*TreeEntries{})
+	hash, err := ComputeTreeSHA1(".", []*objects.TreeEntries{})
 	if err != nil {
 		t.Fatalf("unexpected error for empty entries: %v", err)
 	}

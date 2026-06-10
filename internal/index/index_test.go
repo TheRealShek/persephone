@@ -1,4 +1,4 @@
-package utils
+package index
 
 import (
 	"os"
@@ -307,17 +307,17 @@ func TestWriteIndex_PaddingVariousLengths(t *testing.T) {
 	// Version 3: entry = 64 (fixed) + len(path) + padding (1-8 NUL bytes)
 	// Total entry must be aligned to 8 bytes AND path must be NUL-terminated
 	tests := []struct {
-		name        string
-		pathLen     int
-		expectedSz  int // total file size = 12 (header) + entry size
+		name       string
+		pathLen    int
+		expectedSz int // total file size = 12 (header) + entry size
 	}{
-		{"path_len_1", 1, 12 + 72},    // 64+1=65, pad 7 -> 72
-		{"path_len_2", 2, 12 + 72},    // 64+2=66, pad 6 -> 72
-		{"path_len_6", 6, 12 + 72},    // 64+6=70, pad 2 -> 72
-		{"path_len_7", 7, 12 + 72},    // 64+7=71, pad 1 -> 72
-		{"path_len_8", 8, 12 + 80},    // 64+8=72, pad 8 -> 80 (NUL termination requires min 1 byte)
-		{"path_len_9", 9, 12 + 80},    // 64+9=73, pad 7 -> 80
-		{"path_len_16", 16, 12 + 88},  // 64+16=80, pad 8 -> 88 (NUL termination requires min 1 byte)
+		{"path_len_1", 1, 12 + 72},   // 64+1=65, pad 7 -> 72
+		{"path_len_2", 2, 12 + 72},   // 64+2=66, pad 6 -> 72
+		{"path_len_6", 6, 12 + 72},   // 64+6=70, pad 2 -> 72
+		{"path_len_7", 7, 12 + 72},   // 64+7=71, pad 1 -> 72
+		{"path_len_8", 8, 12 + 80},   // 64+8=72, pad 8 -> 80 (NUL termination requires min 1 byte)
+		{"path_len_9", 9, 12 + 80},   // 64+9=73, pad 7 -> 80
+		{"path_len_16", 16, 12 + 88}, // 64+16=80, pad 8 -> 88 (NUL termination requires min 1 byte)
 	}
 
 	for _, tt := range tests {

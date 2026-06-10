@@ -1,9 +1,10 @@
 package purrCommands_test
 
 import (
+	"Persephone/internal/index"
 	"Persephone/internal/purrCommands"
 	"Persephone/internal/testutils"
-	"Persephone/internal/utils"
+
 	"bytes"
 	"fmt"
 	"io"
@@ -35,7 +36,7 @@ func TestAddAllPurrFiles_ConcurrencyStress(t *testing.T) {
 		t.Fatalf("AddPurrFiles failed: %v", err)
 	}
 
-	entries, err := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, err := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if err != nil {
 		t.Fatalf("Failed to read index: %v", err)
 	}
@@ -99,7 +100,7 @@ func TestAddSpecificFiles_SingleFile(t *testing.T) {
 		t.Fatalf("AddPurrFiles(\"hello.txt\") failed: %v", err)
 	}
 
-	entries, err := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, err := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if err != nil {
 		t.Fatalf("Failed to read index: %v", err)
 	}
@@ -127,7 +128,7 @@ func TestAddSpecificFiles_HiddenFileSkipped(t *testing.T) {
 		t.Fatalf("AddPurrFiles should not fail for hidden files, got: %v", err)
 	}
 
-	entries, err := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, err := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if err != nil {
 		t.Fatalf("Failed to read index: %v", err)
 	}
@@ -207,7 +208,7 @@ func TestAddAllFiles_SkipsHiddenDirectories(t *testing.T) {
 		t.Fatalf("AddPurrFiles(\".\") failed: %v", err)
 	}
 
-	entries, err := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, err := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if err != nil {
 		t.Fatalf("Failed to read index: %v", err)
 	}
@@ -237,7 +238,7 @@ func TestAddAllFiles_IdempotentReAdd(t *testing.T) {
 	}
 
 	indexPath := filepath.Join(repo, ".purr", "index")
-	entries1, _ := utils.ReadIndex(indexPath)
+	entries1, _ := index.ReadIndex(indexPath)
 
 	// Add again without changes
 	err = purrCommands.AddPurrFiles(".")
@@ -245,7 +246,7 @@ func TestAddAllFiles_IdempotentReAdd(t *testing.T) {
 		t.Fatalf("Second AddPurrFiles failed: %v", err)
 	}
 
-	entries2, _ := utils.ReadIndex(indexPath)
+	entries2, _ := index.ReadIndex(indexPath)
 
 	if len(entries1) != len(entries2) {
 		t.Errorf("Re-adding unchanged files changed entry count: %d -> %d", len(entries1), len(entries2))
@@ -274,7 +275,7 @@ func TestAddSpecificFiles_MultipleFiles(t *testing.T) {
 		t.Fatalf("AddPurrFiles with multiple files failed: %v", err)
 	}
 
-	entries, err := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, err := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if err != nil {
 		t.Fatalf("Failed to read index: %v", err)
 	}
@@ -305,7 +306,7 @@ func TestAddSpecificFiles_NonExistentFile(t *testing.T) {
 	}
 
 	// Verify index is empty
-	entries, _ := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, _ := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if len(entries) != 0 {
 		t.Errorf("Expected 0 entries after unstaging non-existent file, got %d", len(entries))
 	}
@@ -326,7 +327,7 @@ func TestAddAllFiles_NestedDirectories(t *testing.T) {
 		t.Fatalf("AddPurrFiles(\".\") failed: %v", err)
 	}
 
-	entries, err := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, err := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if err != nil {
 		t.Fatalf("Failed to read index: %v", err)
 	}
@@ -357,7 +358,7 @@ func TestAddAllFiles_BlobObjectCreated(t *testing.T) {
 		t.Fatalf("AddPurrFiles failed: %v", err)
 	}
 
-	entries, _ := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, _ := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if len(entries) == 0 {
 		t.Fatal("No entries in index")
 	}
@@ -383,7 +384,7 @@ func TestAddAllFiles_DetectsDeletions(t *testing.T) {
 	}
 
 	// Verify it's in the index
-	entries, _ := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, _ := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if len(entries) != 1 {
 		t.Fatalf("Expected 1 entry, got %d", len(entries))
 	}
@@ -397,7 +398,7 @@ func TestAddAllFiles_DetectsDeletions(t *testing.T) {
 	}
 
 	// Verify index is now empty
-	entries, _ = utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, _ = index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if len(entries) != 0 {
 		t.Errorf("Expected 0 entries after deletion, got %d", len(entries))
 	}
@@ -416,7 +417,7 @@ func TestAddSpecificFiles_UnstageDeletedFile(t *testing.T) {
 	}
 
 	// Verify it's in the index
-	entries, _ := utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, _ := index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if len(entries) != 1 {
 		t.Fatalf("Expected 1 entry, got %d", len(entries))
 	}
@@ -430,7 +431,7 @@ func TestAddSpecificFiles_UnstageDeletedFile(t *testing.T) {
 	}
 
 	// Verify index is now empty
-	entries, _ = utils.ReadIndex(filepath.Join(repo, ".purr", "index"))
+	entries, _ = index.ReadIndex(filepath.Join(repo, ".purr", "index"))
 	if len(entries) != 0 {
 		t.Errorf("Expected 0 entries after specific deletion, got %d", len(entries))
 	}

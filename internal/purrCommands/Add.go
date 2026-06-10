@@ -1,8 +1,11 @@
 package purrCommands
 
 import (
+	"Persephone/internal/fsutil"
+	"Persephone/internal/hash"
+	"Persephone/internal/index"
 	"Persephone/internal/ui"
-	"Persephone/internal/utils"
+
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,7 +21,7 @@ import (
 // routes execution to bulk folder staging (`addAllPurrFiles`) or explicit item staging (`addSpecificPurrFiles`).
 func AddPurrFiles(arg ...string) error {
 	targetDir := filepath.Join(".", ".purr")
-	ok, err := utils.ExistsAndIsDirectory(targetDir)
+	ok, err := fsutil.ExistsAndIsDirectory(targetDir)
 	if err != nil {
 		return fmt.Errorf("failed to check repository: %w", err)
 	}
@@ -62,12 +65,12 @@ func AddPurrFiles(arg ...string) error {
 //     to a slice and sort it lexicographically by path before writing to disk. This ensures index updates
 //     generate byte-for-byte identical binaries across executions.
 func addAllPurrFiles(path string) error {
-	IndexEntries, err := utils.ReadIndex(filepath.Join(path, ".purr", "index"))
+	IndexEntries, err := index.ReadIndex(filepath.Join(path, ".purr", "index"))
 	if err != nil {
 		return fmt.Errorf("failed to read index: %w", err)
 	}
 
-	indexMap := make(map[string]*utils.IndexEntry)
+	indexMap := make(map[string]*index.IndexEntry)
 	for i := range IndexEntries {
 		indexMap[IndexEntries[i].Path] = &IndexEntries[i]
 	}
@@ -128,13 +131,13 @@ func addAllPurrFiles(path string) error {
 				}
 
 				// Perform expensive I/O operations outside the lock context
-				hash, err := utils.WriteBlobWithSHA(path, tempPath)
+				hash, err := hash.WriteBlobWithSHA(path, tempPath)
 				if err != nil {
 					errCh <- fmt.Errorf("failed to write blob for %s: %w", tempPath, err)
 					continue
 				}
 
-				newEntry := utils.PopulateAllIndexField(fileInfo, relPath)
+				newEntry := index.PopulateAllIndexField(fileInfo, relPath)
 				newEntry.Sha1 = hash
 
 				// Mutex protected updates on the shared map
@@ -148,7 +151,7 @@ func addAllPurrFiles(path string) error {
 
 	var walkErr error
 	go func() {
-		walkErr = utils.WalkAndAddFiles(path, func(filePath string) error {
+		walkErr = fsutil.WalkAndAddFiles(path, func(filePath string) error {
 			jobs <- filePath
 			return nil
 		})
@@ -176,18 +179,18 @@ func addAllPurrFiles(path string) error {
 		}
 	}
 
-	var updatedEntries []utils.IndexEntry
+	var updatedEntries []index.IndexEntry
 	for _, entry := range indexMap {
 		updatedEntries = append(updatedEntries, *entry)
 	}
 
 	// Lexicographical sorting is a VCS format invariant for fast lookup performance in standard Git
-	slices.SortFunc(updatedEntries, func(a, b utils.IndexEntry) int {
+	slices.SortFunc(updatedEntries, func(a, b index.IndexEntry) int {
 		return strings.Compare(a.Path, b.Path)
 	})
 
 	indexPath := filepath.Join(path, ".purr", "index")
-	if err := utils.WriteIndex(indexPath, updatedEntries); err != nil {
+	if err := index.WriteIndex(indexPath, updatedEntries); err != nil {
 		return fmt.Errorf("failed to write index: %w", err)
 	}
 
@@ -213,12 +216,12 @@ func addSpecificPurrFiles(path string, files []string) error {
 		return nil
 	}
 
-	IndexEntries, err := utils.ReadIndex(filepath.Join(path, ".purr", "index"))
+	IndexEntries, err := index.ReadIndex(filepath.Join(path, ".purr", "index"))
 	if err != nil {
 		return fmt.Errorf("failed to read index: %w", err)
 	}
 
-	indexMap := make(map[string]*utils.IndexEntry)
+	indexMap := make(map[string]*index.IndexEntry)
 	for i := range IndexEntries {
 		indexMap[IndexEntries[i].Path] = &IndexEntries[i]
 	}
@@ -329,13 +332,13 @@ func addSpecificPurrFiles(path string, files []string) error {
 					continue
 				}
 
-				hash, err := utils.WriteBlobWithSHA(path, absPath)
+				hash, err := hash.WriteBlobWithSHA(path, absPath)
 				if err != nil {
 					errCh <- fmt.Errorf("failed to create blob for '%s': %w", fp, err)
 					continue
 				}
 
-				newEntry := utils.PopulateAllIndexField(fileInfo, relPath)
+				newEntry := index.PopulateAllIndexField(fileInfo, relPath)
 				newEntry.Sha1 = hash
 
 				mu.Lock()
@@ -371,17 +374,17 @@ func addSpecificPurrFiles(path string, files []string) error {
 	removedVal := removedCount.Load()
 
 	if addedVal > 0 || removedVal > 0 {
-		var updatedEntries []utils.IndexEntry
+		var updatedEntries []index.IndexEntry
 		for _, entry := range indexMap {
 			updatedEntries = append(updatedEntries, *entry)
 		}
 
-		slices.SortFunc(updatedEntries, func(a, b utils.IndexEntry) int {
+		slices.SortFunc(updatedEntries, func(a, b index.IndexEntry) int {
 			return strings.Compare(a.Path, b.Path)
 		})
 
 		indexPath := filepath.Join(path, ".purr", "index")
-		if err := utils.WriteIndex(indexPath, updatedEntries); err != nil {
+		if err := index.WriteIndex(indexPath, updatedEntries); err != nil {
 			return fmt.Errorf("failed to write index: %w", err)
 		}
 

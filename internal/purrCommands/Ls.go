@@ -1,8 +1,9 @@
 package purrCommands
 
 import (
+	"Persephone/internal/index"
 	"Persephone/internal/ui"
-	"Persephone/internal/utils"
+
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,11 +12,11 @@ import (
 // ListFiles reads `.purr/index` and formats the staged files list.
 //
 // Dual Presentation Models:
-//  - Standard Mode (Default): Focuses on clean file lists, showing paths, short 7-char SHA-1 prefixes,
-//    and standard octal file permissions. This is optimized for rapid developer scanning.
-//  - Debug Mode (`showDebug = true`): Dumps the low-level stat cache metadata of each staged index record
-//    (inodes, device IDs, timestamps, conflict stages, etc.). This acts as a vital tool for VCS maintainers
-//    verifying binary structure alignment, filesystem change-detection, and stat caching correctness.
+//   - Standard Mode (Default): Focuses on clean file lists, showing paths, short 7-char SHA-1 prefixes,
+//     and standard octal file permissions. This is optimized for rapid developer scanning.
+//   - Debug Mode (`showDebug = true`): Dumps the low-level stat cache metadata of each staged index record
+//     (inodes, device IDs, timestamps, conflict stages, etc.). This acts as a vital tool for VCS maintainers
+//     verifying binary structure alignment, filesystem change-detection, and stat caching correctness.
 func ListFiles(rootDir string, showDebug bool) error {
 	purrDir := filepath.Join(rootDir, ".purr")
 	if _, err := os.Stat(purrDir); os.IsNotExist(err) {
@@ -25,7 +26,7 @@ func ListFiles(rootDir string, showDebug bool) error {
 	}
 
 	indexPath := filepath.Join(purrDir, "index")
-	entries, err := utils.ReadIndex(indexPath)
+	entries, err := index.ReadIndex(indexPath)
 	if err != nil {
 		return fmt.Errorf("failed to read index: %w", err)
 	}
@@ -71,4 +72,3 @@ func ListFiles(rootDir string, showDebug bool) error {
 
 	return nil
 }
-

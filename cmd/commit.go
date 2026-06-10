@@ -1,9 +1,10 @@
 package cmd
 
 import (
+	"Persephone/internal/objects"
 	"Persephone/internal/purrCommands"
 	"Persephone/internal/ui"
-	"Persephone/internal/utils"
+
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -18,8 +19,8 @@ import (
 //     (name, email) are set, throwing actionable configuration suggestions if missing.
 //  3. Decoupled Processing: Forwards data to the command engine to assemble object nodes.
 var commitCmd = &cobra.Command{
-	Use:   "commit -m \"message\"",
-	Short: "Record changes",
+	Use:                   "commit -m \"message\"",
+	Short:                 "Record changes",
 	DisableFlagsInUseLine: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		message, _ := cmd.Flags().GetString("message")
@@ -27,7 +28,7 @@ var commitCmd = &cobra.Command{
 			return ui.NewHintError(fmt.Errorf("commit message is required. Use -m \"message\""))
 		}
 
-		userName, userEmail, err := utils.CheckConfigFile()
+		userName, userEmail, err := objects.CheckConfigFile()
 		if err != nil {
 			return err
 		}
@@ -46,4 +47,3 @@ func init() {
 	commitCmd.Flags().StringP("message", "m", "", "Commit message")
 	rootCmd.AddCommand(commitCmd)
 }
-

@@ -1,4 +1,4 @@
-package utils
+package config
 
 import (
 	"encoding/json"
@@ -82,4 +82,3 @@ func WriteConfig(config *PurrConfig) error {
 
 	return nil
 }
-

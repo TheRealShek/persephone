@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 // addCmd represents the `purr add` command execution tree.
 //
 // Controller Separation of Concerns:
@@ -28,5 +27,3 @@ var addCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(addCmd)
 }
-
-

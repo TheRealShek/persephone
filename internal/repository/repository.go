@@ -61,4 +61,3 @@ func (r *Repository) ObjectPath(hash string) string {
 func (r *Repository) ObjectDir(hash string) string {
 	return filepath.Join(r.ObjectsDir(), hash[:2])
 }
-

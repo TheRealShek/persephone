@@ -1,8 +1,12 @@
 package purrCommands
 
 import (
+	"Persephone/internal/config"
+	"Persephone/internal/index"
+	"Persephone/internal/objects"
+	"Persephone/internal/refs"
 	"Persephone/internal/ui"
-	"Persephone/internal/utils"
+
 	"bytes"
 	"compress/zlib"
 	"crypto/sha1"
@@ -29,7 +33,7 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 		return fmt.Errorf("failed to get tree entries: %w", err)
 	}
 
-	treeContent, err := utils.BuildTreeObject(path, entries)
+	treeContent, err := objects.BuildTreeObject(path, entries)
 	if err != nil {
 		return fmt.Errorf("failed to build tree object: %w", err)
 	}
@@ -46,13 +50,13 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 		return fmt.Errorf("failed to finalize tree compression: %w", err)
 	}
 
-	err = utils.StoreObject(path, treeHash, compressed.Bytes())
+	err = objects.StoreObject(path, treeHash, compressed.Bytes())
 	if err != nil {
 		return fmt.Errorf("failed to store tree object: %w", err)
 	}
 
 	// Prevent empty commits: check if tree hash matches parent tree hash
-	parentHash, err := utils.GetHEADCommit(path)
+	parentHash, err := refs.GetHEADCommit(path)
 	if err != nil {
 		return fmt.Errorf("failed to read parent commit: %w", err)
 	}
@@ -62,7 +66,7 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 	}
 
 	if parentHash != "" {
-		parentTreeHash, err := utils.GetCommitTreeHash(path, parentHash)
+		parentTreeHash, err := objects.GetCommitTreeHash(path, parentHash)
 		if err != nil {
 			return fmt.Errorf("failed to read parent tree: %w", err)
 		}
@@ -71,12 +75,12 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 		}
 	}
 
-	authorInfo := utils.PurrConfig{
+	authorInfo := config.PurrConfig{
 		UserName:  authorName,
 		UserEmail: authorEmail,
 	}
 
-	commit := &utils.CommitObj{
+	commit := &objects.CommitObj{
 		TreeHash:   treeHash,
 		ParentHash: parentHash,
 		Author:     authorInfo,
@@ -85,12 +89,12 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 		Timestamp:  time.Now(),
 	}
 
-	commitHash, err := utils.ComputeCommitSHA1(commit)
+	commitHash, err := objects.ComputeCommitSHA1(commit)
 	if err != nil {
 		return fmt.Errorf("failed to compute commit hash: %w", err)
 	}
 
-	commitObj, err := utils.BuildCommitObject(commit)
+	commitObj, err := objects.BuildCommitObject(commit)
 	if err != nil {
 		return fmt.Errorf("failed to build commit object: %w", err)
 	}
@@ -104,12 +108,12 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 		return fmt.Errorf("failed to finalize commit compression: %w", err)
 	}
 
-	err = utils.StoreObject(path, commitHash, compressed.Bytes())
+	err = objects.StoreObject(path, commitHash, compressed.Bytes())
 	if err != nil {
 		return fmt.Errorf("failed to store commit object: %w", err)
 	}
 
-	err = utils.UpdateHEAD(path, commitHash)
+	err = refs.UpdateHEAD(path, commitHash)
 	if err != nil {
 		return fmt.Errorf("failed to update HEAD: %w", err)
 	}
@@ -121,26 +125,24 @@ func CommitPurrFiles(path, message, authorName, authorEmail string) error {
 
 // getTreeEntries resolves and parses index staged records for the commit builder.
 // It maps the flat list of files staged in `.purr/index` into a slice of `TreeEntries`.
-func getTreeEntries(path string) ([]*utils.TreeEntries, error) {
+func getTreeEntries(path string) ([]*objects.TreeEntries, error) {
 	purrDir := filepath.Join(path, ".purr")
 	if _, err := os.Stat(purrDir); os.IsNotExist(err) {
 		return nil, fmt.Errorf("not a purr repository (or any of the parent directories): .purr")
 	}
 
 	indexPath := filepath.Join(purrDir, "index")
-	index, err := utils.ReadIndex(indexPath)
+	index, err := index.ReadIndex(indexPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read index: %w", err)
 	}
 
-
-
-	var entries []*utils.TreeEntries
+	var entries []*objects.TreeEntries
 	for _, indexEntry := range index {
 		sha1Hex := fmt.Sprintf("%x", indexEntry.Sha1)
 		mode := getGitMode(indexEntry.Mode)
 
-		entry := &utils.TreeEntries{
+		entry := &objects.TreeEntries{
 			Name:     indexEntry.Path,
 			Filename: filepath.Base(indexEntry.Path),
 			Sha1Hex:  sha1Hex,

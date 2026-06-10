@@ -1,8 +1,10 @@
 package purrCommands
 
 import (
+	"Persephone/internal/objects"
+	"Persephone/internal/refs"
 	"Persephone/internal/ui"
-	"Persephone/internal/utils"
+
 	"fmt"
 	"io"
 	"os"
@@ -26,7 +28,7 @@ func LogCommits(rootDir string, out io.Writer) error {
 		return fmt.Errorf("failed to inspect repository: %w", err)
 	}
 
-	commitHash, err := utils.GetHEADCommit(rootDir)
+	commitHash, err := refs.GetHEADCommit(rootDir)
 	if err != nil {
 		return fmt.Errorf("failed to resolve HEAD: %w", err)
 	}
@@ -44,7 +46,7 @@ func LogCommits(rootDir string, out io.Writer) error {
 		}
 		visited[commitHash] = struct{}{}
 
-		commit, err := utils.ReadCommitObject(rootDir, commitHash)
+		commit, err := objects.ReadCommitObject(rootDir, commitHash)
 		if err != nil {
 			return fmt.Errorf("failed to read history at %s: %w", commitHash, err)
 		}
@@ -61,7 +63,7 @@ func LogCommits(rootDir string, out io.Writer) error {
 	return nil
 }
 
-func printCommit(out io.Writer, hash string, commit *utils.CommitObj) {
+func printCommit(out io.Writer, hash string, commit *objects.CommitObj) {
 	fmt.Fprintln(out, ui.LogCommitHeader(hash))
 	fmt.Fprintf(out, "%s %s <%s>\n", ui.LogLabel("Author:"), commit.Author.UserName, commit.Author.UserEmail)
 	fmt.Fprintf(out, "%s   %s\n\n", ui.LogLabel("Date:"), commit.Timestamp.UTC().Format(time.RFC1123Z))

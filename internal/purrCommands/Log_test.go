@@ -1,9 +1,11 @@
 package purrCommands_test
 
 import (
+	"Persephone/internal/config"
+	"Persephone/internal/objects"
 	"Persephone/internal/purrCommands"
 	"Persephone/internal/testutils"
-	"Persephone/internal/utils"
+
 	"bytes"
 	"compress/zlib"
 	"os"
@@ -16,15 +18,15 @@ import (
 func storeLogCommit(t *testing.T, rootDir, hash, parentHash, message string) {
 	t.Helper()
 
-	commit := &utils.CommitObj{
+	commit := &objects.CommitObj{
 		TreeHash:   strings.Repeat("a", 40),
 		ParentHash: parentHash,
-		Author:     utils.PurrConfig{UserName: "Log Tester", UserEmail: "log@example.com"},
-		Committer:  utils.PurrConfig{UserName: "Log Tester", UserEmail: "log@example.com"},
+		Author:     config.PurrConfig{UserName: "Log Tester", UserEmail: "log@example.com"},
+		Committer:  config.PurrConfig{UserName: "Log Tester", UserEmail: "log@example.com"},
 		Message:    message,
 		Timestamp:  time.Date(2026, 6, 1, 9, 30, 0, 0, time.UTC),
 	}
-	object, err := utils.BuildCommitObject(commit)
+	object, err := objects.BuildCommitObject(commit)
 	if err != nil {
 		t.Fatalf("BuildCommitObject() error = %v", err)
 	}
