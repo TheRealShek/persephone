@@ -1,7 +1,7 @@
-package purrCommands_test
+package purrcommands_test
 
 import (
-	"Persephone/internal/purrCommands"
+	"persephone/internal/purrcommands"
 	"encoding/binary"
 	"os"
 	"path/filepath"
@@ -12,7 +12,7 @@ import (
 func TestInitPurrDirectories_CreatesAllDirs(t *testing.T) {
 	base := t.TempDir()
 
-	if err := purrCommands.InitPurrDirectories(base); err != nil {
+	if err := purrcommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("InitPurrDirectories() error = %v", err)
 	}
 
@@ -37,7 +37,7 @@ func TestInitPurrDirectories_CreatesAllDirs(t *testing.T) {
 func TestInitPurrDirectories_IndexFileHeader(t *testing.T) {
 	base := t.TempDir()
 
-	if err := purrCommands.InitPurrDirectories(base); err != nil {
+	if err := purrcommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("InitPurrDirectories() error = %v", err)
 	}
 
@@ -73,7 +73,7 @@ func TestInitPurrDirectories_IndexFileHeader(t *testing.T) {
 func TestInitPurrDirectories_HEADContent(t *testing.T) {
 	base := t.TempDir()
 
-	if err := purrCommands.InitPurrDirectories(base); err != nil {
+	if err := purrcommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("InitPurrDirectories() error = %v", err)
 	}
 
@@ -93,7 +93,7 @@ func TestInitPurrDirectories_RejectsExistingRepository(t *testing.T) {
 	base := t.TempDir()
 
 	// First call
-	if err := purrCommands.InitPurrDirectories(base); err != nil {
+	if err := purrcommands.InitPurrDirectories(base); err != nil {
 		t.Fatalf("first InitPurrDirectories() error = %v", err)
 	}
 
@@ -112,7 +112,7 @@ func TestInitPurrDirectories_RejectsExistingRepository(t *testing.T) {
 
 	// Initialization is intentionally create-only. Existing metadata must be inspected and
 	// repaired explicitly rather than modified as a side effect of a repeated command.
-	if err := purrCommands.InitPurrDirectories(base); err == nil {
+	if err := purrcommands.InitPurrDirectories(base); err == nil {
 		t.Fatal("second InitPurrDirectories() expected an already-initialized error")
 	}
 
@@ -150,7 +150,7 @@ func TestInitPurrDirectories_PreservesExistingIndex(t *testing.T) {
 	}
 
 	// Init must reject an existing metadata root before touching its contents.
-	if err := purrCommands.InitPurrDirectories(base); err == nil {
+	if err := purrcommands.InitPurrDirectories(base); err == nil {
 		t.Fatal("InitPurrDirectories() expected an already-initialized error")
 	}
 
@@ -180,7 +180,7 @@ func TestInitPurrDirectories_PreservesExistingHEAD(t *testing.T) {
 	}
 
 	// Init must reject an existing metadata root before touching its contents.
-	if err := purrCommands.InitPurrDirectories(base); err == nil {
+	if err := purrcommands.InitPurrDirectories(base); err == nil {
 		t.Fatal("InitPurrDirectories() expected an already-initialized error")
 	}
 
@@ -201,7 +201,7 @@ func TestInitPurrDirectories_RejectsMetadataFile(t *testing.T) {
 		t.Fatalf("failed to create metadata path fixture: %v", err)
 	}
 
-	err := purrCommands.InitPurrDirectories(base)
+	err := purrcommands.InitPurrDirectories(base)
 	if err == nil {
 		t.Fatal("InitPurrDirectories() expected an error when .purr is a file")
 	}
@@ -226,7 +226,7 @@ func TestReinitializePurrDirectories_RestoresMissingStructureAndPreservesMetadat
 		t.Fatalf("failed to write HEAD fixture: %v", err)
 	}
 
-	if err := purrCommands.ReinitializePurrDirectories(base); err != nil {
+	if err := purrcommands.ReinitializePurrDirectories(base); err != nil {
 		t.Fatalf("ReinitializePurrDirectories() error = %v", err)
 	}
 
@@ -257,7 +257,7 @@ func TestReinitializePurrDirectories_RestoresMissingStructureAndPreservesMetadat
 }
 
 func TestReinitializePurrDirectories_RejectsMissingRepository(t *testing.T) {
-	if err := purrCommands.ReinitializePurrDirectories(t.TempDir()); err == nil {
+	if err := purrcommands.ReinitializePurrDirectories(t.TempDir()); err == nil {
 		t.Fatal("ReinitializePurrDirectories() expected an error for missing metadata root")
 	}
 }

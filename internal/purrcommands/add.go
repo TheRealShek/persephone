@@ -1,10 +1,10 @@
-package purrCommands
+package purrcommands
 
 import (
-	"Persephone/internal/fsutil"
-	"Persephone/internal/hash"
-	"Persephone/internal/index"
-	"Persephone/internal/ui"
+	"persephone/internal/fsutil"
+	"persephone/internal/hash"
+	"persephone/internal/index"
+	"persephone/internal/ui"
 
 	"fmt"
 	"os"

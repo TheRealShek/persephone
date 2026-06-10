@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"Persephone/internal/purrCommands"
+	"persephone/internal/purrcommands"
 
 	"github.com/spf13/cobra"
 )
@@ -11,7 +11,7 @@ var removeCmd = &cobra.Command{
 	Use:   "remove <file>...",
 	Short: "Remove files",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return purrCommands.RemovePurrFiles(args...)
+		return purrcommands.RemovePurrFiles(args...)
 	},
 }
 

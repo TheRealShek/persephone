@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"Persephone/internal/repository"
+	"persephone/internal/repository"
 )
 
 func TestOpen_ValidRepo(t *testing.T) {

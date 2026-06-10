@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"Persephone/internal/config"
-	"Persephone/internal/ui"
+	"persephone/internal/config"
+	"persephone/internal/ui"
 )
 
 // BuildTreeObject constructs a Git-compatible tree object from a slice of TreeEntries.

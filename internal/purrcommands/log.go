@@ -1,9 +1,9 @@
-package purrCommands
+package purrcommands
 
 import (
-	"Persephone/internal/objects"
-	"Persephone/internal/refs"
-	"Persephone/internal/ui"
+	"persephone/internal/objects"
+	"persephone/internal/refs"
+	"persephone/internal/ui"
 
 	"fmt"
 	"io"

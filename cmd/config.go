@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"Persephone/internal/purrCommands"
+	"persephone/internal/purrcommands"
 
 	"github.com/spf13/cobra"
 )
@@ -22,7 +22,7 @@ Examples:
   purr config user.name "John Doe"       # Set user name
   purr config user.email "john@example.com"  # Set user email`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := purrCommands.ConfigCommand(args...)
+		err := purrcommands.ConfigCommand(args...)
 		if err != nil {
 			return err
 		}

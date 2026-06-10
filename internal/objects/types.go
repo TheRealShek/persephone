@@ -1,7 +1,7 @@
 package objects
 
 import (
-	"Persephone/internal/config"
+	"persephone/internal/config"
 	"time"
 )
 

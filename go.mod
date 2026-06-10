@@ -1,4 +1,4 @@
-module Persephone
+module persephone
 
 go 1.25.1
 

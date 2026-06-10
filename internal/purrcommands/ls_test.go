@@ -1,19 +1,19 @@
-package purrCommands_test
+package purrcommands_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"Persephone/internal/purrCommands"
-	"Persephone/internal/testutils"
+	"persephone/internal/purrcommands"
+	"persephone/internal/testutils"
 )
 
 func TestListFiles_EmptyIndex(t *testing.T) {
 	repo := testutils.SetupTestRepo(t)
 
 	// A freshly initialised repo has an empty index — ListFiles should succeed.
-	err := purrCommands.ListFiles(repo, false)
+	err := purrcommands.ListFiles(repo, false)
 	if err != nil {
 		t.Errorf("expected no error for empty index, got: %v", err)
 	}
@@ -48,11 +48,11 @@ func TestListFiles_WithFiles(t *testing.T) {
 	restore := chdirTo(t, repo)
 	defer restore()
 
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("failed to add files: %v", err)
 	}
 
-	err := purrCommands.ListFiles(repo, false)
+	err := purrcommands.ListFiles(repo, false)
 	if err != nil {
 		t.Errorf("expected no error listing files, got: %v", err)
 	}
@@ -66,11 +66,11 @@ func TestListFiles_DebugMode(t *testing.T) {
 	restore := chdirTo(t, repo)
 	defer restore()
 
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("failed to add files: %v", err)
 	}
 
-	err := purrCommands.ListFiles(repo, true)
+	err := purrcommands.ListFiles(repo, true)
 	if err != nil {
 		t.Errorf("expected no error in debug mode, got: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestListFiles_NoIndex(t *testing.T) {
 	}
 	// No index file written — ReadIndex should fail
 
-	err := purrCommands.ListFiles(dir, false)
+	err := purrcommands.ListFiles(dir, false)
 	if err == nil {
 		t.Fatal("expected error when index file is missing, got nil")
 	}

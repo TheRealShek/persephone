@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"Persephone/internal/purrCommands"
+	"persephone/internal/purrcommands"
 
 	"github.com/spf13/cobra"
 )
@@ -19,7 +19,7 @@ var lsFilesCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		debug, _ := cmd.Flags().GetBool("debug")
 
-		if err := purrCommands.ListFiles(".", debug); err != nil {
+		if err := purrcommands.ListFiles(".", debug); err != nil {
 			return err
 		}
 		return nil

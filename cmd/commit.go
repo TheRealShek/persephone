@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"Persephone/internal/objects"
-	"Persephone/internal/purrCommands"
-	"Persephone/internal/ui"
+	"persephone/internal/objects"
+	"persephone/internal/purrcommands"
+	"persephone/internal/ui"
 
 	"fmt"
 
@@ -33,7 +33,7 @@ var commitCmd = &cobra.Command{
 			return err
 		}
 
-		err = purrCommands.CommitPurrFiles(".", message, userName, userEmail)
+		err = purrcommands.CommitPurrFiles(".", message, userName, userEmail)
 		if err != nil {
 			return err
 		}

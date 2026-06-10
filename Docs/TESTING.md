@@ -53,7 +53,7 @@ go test -v ./internal/utils
 
 **Commands & File System Integration (Add, Commit):**
 ```bash
-go test -v ./internal/purrCommands
+go test -v ./internal/purrcommands
 ```
 
 **End-to-End CLI Workflows (Init -> Add -> Commit):**

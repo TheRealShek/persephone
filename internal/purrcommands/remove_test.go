@@ -1,13 +1,13 @@
-package purrCommands_test
+package purrcommands_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"Persephone/internal/index"
-	"Persephone/internal/purrCommands"
-	"Persephone/internal/testutils"
+	"persephone/internal/index"
+	"persephone/internal/purrcommands"
+	"persephone/internal/testutils"
 )
 
 func TestRemovePurrFiles_RemovesTrackedFile(t *testing.T) {
@@ -27,11 +27,11 @@ func TestRemovePurrFiles_RemovesTrackedFile(t *testing.T) {
 		}
 	}()
 
-	if err := purrCommands.AddPurrFiles("keep.txt"); err != nil {
+	if err := purrcommands.AddPurrFiles("keep.txt"); err != nil {
 		t.Fatalf("AddPurrFiles failed: %v", err)
 	}
 
-	if err := purrCommands.RemovePurrFiles("keep.txt"); err != nil {
+	if err := purrcommands.RemovePurrFiles("keep.txt"); err != nil {
 		t.Fatalf("RemovePurrFiles failed: %v", err)
 	}
 
@@ -65,7 +65,7 @@ func TestRemovePurrFiles_RejectsUntrackedFile(t *testing.T) {
 		}
 	}()
 
-	if err := purrCommands.RemovePurrFiles("ghost.txt"); err == nil {
+	if err := purrcommands.RemovePurrFiles("ghost.txt"); err == nil {
 		t.Fatal("expected error removing untracked file, got nil")
 	}
 
@@ -94,11 +94,11 @@ func TestRemovePurrFiles_DirectoryRejected(t *testing.T) {
 		}
 	}()
 
-	if err := purrCommands.AddPurrFiles("subdir/file.txt"); err != nil {
+	if err := purrcommands.AddPurrFiles("subdir/file.txt"); err != nil {
 		t.Fatalf("AddPurrFiles failed: %v", err)
 	}
 
-	if err := purrCommands.RemovePurrFiles("subdir"); err == nil {
+	if err := purrcommands.RemovePurrFiles("subdir"); err == nil {
 		t.Fatal("expected error removing a directory, got nil")
 	}
 }
@@ -120,11 +120,11 @@ func TestRemovePurrFiles_NormalizesRelativePaths(t *testing.T) {
 		}
 	}()
 
-	if err := purrCommands.AddPurrFiles("nested/file.txt"); err != nil {
+	if err := purrcommands.AddPurrFiles("nested/file.txt"); err != nil {
 		t.Fatalf("AddPurrFiles failed: %v", err)
 	}
 
-	if err := purrCommands.RemovePurrFiles("./nested/../nested/file.txt"); err != nil {
+	if err := purrcommands.RemovePurrFiles("./nested/../nested/file.txt"); err != nil {
 		t.Fatalf("RemovePurrFiles failed for normalized path: %v", err)
 	}
 

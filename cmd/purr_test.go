@@ -1,12 +1,12 @@
 package cmd_test
 
 import (
-	"Persephone/internal/hash"
-	"Persephone/internal/index"
-	"Persephone/internal/objects"
-	"Persephone/internal/purrCommands"
-	"Persephone/internal/refs"
-	"Persephone/internal/testutils"
+	"persephone/internal/hash"
+	"persephone/internal/index"
+	"persephone/internal/objects"
+	"persephone/internal/purrcommands"
+	"persephone/internal/refs"
+	"persephone/internal/testutils"
 
 	"os"
 	"path/filepath"
@@ -21,7 +21,7 @@ func TestFullWorkflow_InitAddCommit(t *testing.T) {
 	repo := t.TempDir()
 
 	// 1. Init
-	err := purrCommands.InitPurrDirectories(repo)
+	err := purrcommands.InitPurrDirectories(repo)
 	if err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestFullWorkflow_InitAddCommit(t *testing.T) {
 	testutils.WriteTestFile(t, repo, "dir/file2.txt", "nested")
 
 	// 3. Add files
-	err = purrCommands.AddPurrFiles(".")
+	err = purrcommands.AddPurrFiles(".")
 	if err != nil {
 		t.Fatalf("Add failed: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestFullWorkflow_InitAddCommit(t *testing.T) {
 	}
 
 	// 4. Commit
-	err = purrCommands.CommitPurrFiles(repo, "First commit", "Test E2E", "e2e@example.com")
+	err = purrcommands.CommitPurrFiles(repo, "First commit", "Test E2E", "e2e@example.com")
 	if err != nil {
 		t.Fatalf("Commit failed: %v", err)
 	}
@@ -92,12 +92,12 @@ func TestFullWorkflow_DoubleCommit(t *testing.T) {
 
 	// Create and add initial file
 	testutils.WriteTestFile(t, repo, "file.txt", "version 1")
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("First add failed: %v", err)
 	}
 
 	// First commit
-	err := purrCommands.CommitPurrFiles(repo, "First commit", "Test User", "test@example.com")
+	err := purrcommands.CommitPurrFiles(repo, "First commit", "Test User", "test@example.com")
 	if err != nil {
 		t.Fatalf("First commit failed: %v", err)
 	}
@@ -109,11 +109,11 @@ func TestFullWorkflow_DoubleCommit(t *testing.T) {
 
 	// Modify file, re-add, and commit again
 	testutils.WriteTestFile(t, repo, "file.txt", "version 2")
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("Second add failed: %v", err)
 	}
 
-	err = purrCommands.CommitPurrFiles(repo, "Second commit", "Test User", "test@example.com")
+	err = purrcommands.CommitPurrFiles(repo, "Second commit", "Test User", "test@example.com")
 	if err != nil {
 		t.Fatalf("Second commit failed: %v", err)
 	}
@@ -145,18 +145,18 @@ func TestFullWorkflow_CleanTreeRejectsCommit(t *testing.T) {
 	defer os.Chdir(originalWD)
 
 	testutils.WriteTestFile(t, repo, "file.txt", "data")
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("Add failed: %v", err)
 	}
 
 	// First commit should succeed
-	err := purrCommands.CommitPurrFiles(repo, "Initial", "Test User", "test@example.com")
+	err := purrcommands.CommitPurrFiles(repo, "Initial", "Test User", "test@example.com")
 	if err != nil {
 		t.Fatalf("First commit failed: %v", err)
 	}
 
 	// Second commit without changes should fail with "nothing to commit"
-	err = purrCommands.CommitPurrFiles(repo, "Duplicate", "Test User", "test@example.com")
+	err = purrcommands.CommitPurrFiles(repo, "Duplicate", "Test User", "test@example.com")
 	if err == nil {
 		t.Fatal("Expected error for clean tree commit, but got nil")
 	}
@@ -172,17 +172,17 @@ func TestFullWorkflow_AddThenListFiles(t *testing.T) {
 	testutils.WriteTestFile(t, repo, "alpha.txt", "a")
 	testutils.WriteTestFile(t, repo, "beta.txt", "b")
 
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("Add failed: %v", err)
 	}
 
 	// ListFiles should not error
-	err := purrCommands.ListFiles(repo, false)
+	err := purrcommands.ListFiles(repo, false)
 	if err != nil {
 		t.Fatalf("ListFiles (normal mode) failed: %v", err)
 	}
 
-	err = purrCommands.ListFiles(repo, true)
+	err = purrcommands.ListFiles(repo, true)
 	if err != nil {
 		t.Fatalf("ListFiles (debug mode) failed: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestFullWorkflow_AddSpecificThenAll(t *testing.T) {
 	testutils.WriteTestFile(t, repo, "third.txt", "3")
 
 	// Add only one file first
-	if err := purrCommands.AddPurrFiles("first.txt"); err != nil {
+	if err := purrcommands.AddPurrFiles("first.txt"); err != nil {
 		t.Fatalf("Specific add failed: %v", err)
 	}
 
@@ -210,7 +210,7 @@ func TestFullWorkflow_AddSpecificThenAll(t *testing.T) {
 	}
 
 	// Now add all
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("Add all failed: %v", err)
 	}
 
@@ -223,12 +223,12 @@ func TestFullWorkflow_AddSpecificThenAll(t *testing.T) {
 func TestFullWorkflow_RejectsRepeatedInit(t *testing.T) {
 	repo := t.TempDir()
 
-	err := purrCommands.InitPurrDirectories(repo)
+	err := purrcommands.InitPurrDirectories(repo)
 	if err != nil {
 		t.Fatalf("First init failed: %v", err)
 	}
 
-	err = purrCommands.InitPurrDirectories(repo)
+	err = purrcommands.InitPurrDirectories(repo)
 	if err == nil {
 		t.Fatal("Second init should fail for an existing repository")
 	}
@@ -259,10 +259,10 @@ func TestFullWorkflow_CommitWithNewFile(t *testing.T) {
 
 	// First commit with one file
 	testutils.WriteTestFile(t, repo, "original.txt", "original")
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("First add failed: %v", err)
 	}
-	if err := purrCommands.CommitPurrFiles(repo, "First", "Test User", "test@example.com"); err != nil {
+	if err := purrcommands.CommitPurrFiles(repo, "First", "Test User", "test@example.com"); err != nil {
 		t.Fatalf("First commit failed: %v", err)
 	}
 
@@ -270,10 +270,10 @@ func TestFullWorkflow_CommitWithNewFile(t *testing.T) {
 
 	// Second commit adding a new file (original unchanged)
 	testutils.WriteTestFile(t, repo, "new_file.txt", "new content")
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("Second add failed: %v", err)
 	}
-	if err := purrCommands.CommitPurrFiles(repo, "Second", "Test User", "test@example.com"); err != nil {
+	if err := purrcommands.CommitPurrFiles(repo, "Second", "Test User", "test@example.com"); err != nil {
 		t.Fatalf("Second commit failed: %v", err)
 	}
 
@@ -299,20 +299,20 @@ func TestFullWorkflow_DeletionCommit(t *testing.T) {
 
 	// 1. Add file and commit
 	filePath := testutils.WriteTestFile(t, repo, "file.txt", "content")
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("First add failed: %v", err)
 	}
-	if err := purrCommands.CommitPurrFiles(repo, "First commit", "Test User", "test@example.com"); err != nil {
+	if err := purrcommands.CommitPurrFiles(repo, "First commit", "Test User", "test@example.com"); err != nil {
 		t.Fatalf("First commit failed: %v", err)
 	}
 	firstHead, _ := refs.GetHEADCommit(repo)
 
 	// 2. Delete file, add and commit
 	os.Remove(filePath)
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("Second add failed: %v", err)
 	}
-	if err := purrCommands.CommitPurrFiles(repo, "Second commit", "Test User", "test@example.com"); err != nil {
+	if err := purrcommands.CommitPurrFiles(repo, "Second commit", "Test User", "test@example.com"); err != nil {
 		t.Fatalf("Second commit failed: %v", err)
 	}
 	secondHead, _ := refs.GetHEADCommit(repo)

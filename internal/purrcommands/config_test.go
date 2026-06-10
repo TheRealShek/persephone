@@ -1,4 +1,4 @@
-package purrCommands_test
+package purrcommands_test
 
 import (
 	"encoding/json"
@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"Persephone/internal/config"
-	"Persephone/internal/purrCommands"
+	"persephone/internal/config"
+	"persephone/internal/purrcommands"
 )
 
 // setConfigEnv is a helper that points PURR_CONFIG_PATH to an isolated temp file
@@ -37,7 +37,7 @@ func readConfigFile(t *testing.T, path string) config.PurrConfig {
 func TestConfigCommand_NoArgs(t *testing.T) {
 	_ = setConfigEnv(t)
 
-	err := purrCommands.ConfigCommand()
+	err := purrcommands.ConfigCommand()
 	if err == nil {
 		t.Fatal("expected error when called with no arguments, got nil")
 	}
@@ -49,7 +49,7 @@ func TestConfigCommand_NoArgs(t *testing.T) {
 func TestConfigCommand_SetUserName(t *testing.T) {
 	configPath := setConfigEnv(t)
 
-	err := purrCommands.ConfigCommand("user.name", "Alice")
+	err := purrcommands.ConfigCommand("user.name", "Alice")
 	if err != nil {
 		t.Fatalf("unexpected error setting user.name: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestConfigCommand_SetUserName(t *testing.T) {
 func TestConfigCommand_SetUserEmail(t *testing.T) {
 	configPath := setConfigEnv(t)
 
-	err := purrCommands.ConfigCommand("user.email", "alice@example.com")
+	err := purrcommands.ConfigCommand("user.email", "alice@example.com")
 	if err != nil {
 		t.Fatalf("unexpected error setting user.email: %v", err)
 	}
@@ -78,12 +78,12 @@ func TestConfigCommand_ReadUserName(t *testing.T) {
 	_ = setConfigEnv(t)
 
 	// Set first so there is something to read
-	if err := purrCommands.ConfigCommand("user.name", "Bob"); err != nil {
+	if err := purrcommands.ConfigCommand("user.name", "Bob"); err != nil {
 		t.Fatalf("setup: failed to set user.name: %v", err)
 	}
 
 	// Reading should succeed without error
-	err := purrCommands.ConfigCommand("user.name")
+	err := purrcommands.ConfigCommand("user.name")
 	if err != nil {
 		t.Errorf("unexpected error reading user.name: %v", err)
 	}
@@ -92,11 +92,11 @@ func TestConfigCommand_ReadUserName(t *testing.T) {
 func TestConfigCommand_ReadUserEmail(t *testing.T) {
 	_ = setConfigEnv(t)
 
-	if err := purrCommands.ConfigCommand("user.email", "bob@example.com"); err != nil {
+	if err := purrcommands.ConfigCommand("user.email", "bob@example.com"); err != nil {
 		t.Fatalf("setup: failed to set user.email: %v", err)
 	}
 
-	err := purrCommands.ConfigCommand("user.email")
+	err := purrcommands.ConfigCommand("user.email")
 	if err != nil {
 		t.Errorf("unexpected error reading user.email: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestConfigCommand_UnknownKey(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := purrCommands.ConfigCommand(tc.args...)
+			err := purrcommands.ConfigCommand(tc.args...)
 			if err == nil {
 				t.Fatal("expected error for unknown config key, got nil")
 			}
@@ -129,12 +129,12 @@ func TestConfigCommand_SetAndOverwrite(t *testing.T) {
 	configPath := setConfigEnv(t)
 
 	// First write
-	if err := purrCommands.ConfigCommand("user.name", "FirstName"); err != nil {
+	if err := purrcommands.ConfigCommand("user.name", "FirstName"); err != nil {
 		t.Fatalf("first set failed: %v", err)
 	}
 
 	// Overwrite with a different value
-	if err := purrCommands.ConfigCommand("user.name", "SecondName"); err != nil {
+	if err := purrcommands.ConfigCommand("user.name", "SecondName"); err != nil {
 		t.Fatalf("overwrite set failed: %v", err)
 	}
 
@@ -148,12 +148,12 @@ func TestConfigCommand_ReadUnsetValue(t *testing.T) {
 	_ = setConfigEnv(t)
 
 	// Config file does not exist yet — reading an unset value should not error.
-	err := purrCommands.ConfigCommand("user.name")
+	err := purrcommands.ConfigCommand("user.name")
 	if err != nil {
 		t.Errorf("expected no error when reading unset user.name, got: %v", err)
 	}
 
-	err = purrCommands.ConfigCommand("user.email")
+	err = purrcommands.ConfigCommand("user.email")
 	if err != nil {
 		t.Errorf("expected no error when reading unset user.email, got: %v", err)
 	}

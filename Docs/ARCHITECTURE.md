@@ -8,7 +8,7 @@ This document details the software design, sequence flows, and internal implemen
 
 ```
 internal/
-├── purrCommands/        ← command logic + OS calls + concurrency + path construction + index I/O
+├── purrcommands/        ← command logic + OS calls + concurrency + path construction + index I/O
 │   ├── Add.go           ← owns goroutine pool, mutex, filepath.Join(".purr","index"), os.Stat
 │   ├── Commit.go        ← owns zlib compression, tree building, HEAD resolution
 │   ├── Config.go
@@ -243,7 +243,7 @@ Initializes a local repository with the necessary directory hierarchy and metada
 sequenceDiagram
     actor User
     participant CLI as cmd/init.go (Cobra)
-    participant Core as internal/purrCommands/Init.go
+    participant Core as internal/purrcommands/Init.go
     participant OS as Filesystem
 
     User->>CLI: Runs "purr init"
@@ -279,7 +279,7 @@ sequenceDiagram
 ```
 
 1. **Invocation**: The user executes `purr init`. The runtime invokes the entrypoint in `cmd/init.go`.
-2. **Directory Bootstrapping**: Core calls `InitPurrDirectories(".")` inside `internal/purrCommands/Init.go`. It builds `.purr/objects`, `.purr/refs/heads`, and `.purr/logs`.
+2. **Directory Bootstrapping**: Core calls `InitPurrDirectories(".")` inside `internal/purrcommands/Init.go`. It builds `.purr/objects`, `.purr/refs/heads`, and `.purr/logs`.
 3. **Explicit Reinitialization Guard**: If `.purr` already exists, initial setup stops before touching metadata and the CLI asks for confirmation. An accepted reinitialization restores missing scaffolding while preserving index, HEAD, refs, and objects.
 4. **OS-Specific Adjustments**: On Windows platforms, `.purr` is set to "hidden" using syscalls.
 5. **Staging Index Creation**: Writes a valid 12-byte binary index header:
@@ -296,7 +296,7 @@ Lists all files currently tracked in the staging index.
 sequenceDiagram
     actor User
     participant CLI as cmd/ls.go (Cobra)
-    participant Core as internal/purrCommands/Ls.go
+    participant Core as internal/purrcommands/Ls.go
     participant Utils as internal/utils (Index Reader)
 
     User->>CLI: Runs "purr ls [--debug]"
@@ -323,7 +323,7 @@ sequenceDiagram
     CLI-->>User: Displays list outputs
 ```
 
-1. **Loading Index**: The CLI calls `ListFiles(showDebug)` in `internal/purrCommands/Ls.go`. It reads the binary database under `.purr/index` using the `utils.ReadIndex` library helper.
+1. **Loading Index**: The CLI calls `ListFiles(showDebug)` in `internal/purrcommands/Ls.go`. It reads the binary database under `.purr/index` using the `utils.ReadIndex` library helper.
 2. **Empty Bounds Handling**: If the index contains `0` records, the command exits with `"No files in index"`.
 3. **Output Rendering**:
    - **Default Mode**: Displays the calculated object hash, file mode, and relative path.
@@ -337,7 +337,7 @@ Manages configuration files on the local machine.
 sequenceDiagram
     actor User
     participant CLI as cmd/config.go (Cobra)
-    participant Core as internal/purrCommands/Config.go
+    participant Core as internal/purrcommands/Config.go
     participant OS as ~/.purrconfig
 
     alt Read Key
@@ -368,7 +368,7 @@ Walks directories concurrently and stages new or modified files in the `.purr` i
 sequenceDiagram
     actor User
     participant CLI as cmd/add.go (Cobra)
-    participant Core as internal/purrCommands/Add.go
+    participant Core as internal/purrcommands/Add.go
     participant WP as Worker Pool (Goroutines)
     participant OS as Filesystem
 
@@ -400,7 +400,7 @@ sequenceDiagram
     CLI-->>User: Displays staging results summary
 ```
 
-1. **Directory Checks**: Core calls `AddPurrFiles(args...)` from `internal/purrCommands/Add.go`, validating that the directory has been initialized with a `.purr` storage root.
+1. **Directory Checks**: Core calls `AddPurrFiles(args...)` from `internal/purrcommands/Add.go`, validating that the directory has been initialized with a `.purr` storage root.
 2. **Workspace Traversal**:
    - **Staging All**: Walks the current directory recursively skipping hidden folders and `.purr` contents. Files present in the old index but missing from the disk are removed from the staging area.
    - **Staging Specific Paths**: Collects the files listed in the arguments, gracefully unstaging files if they have been deleted.
@@ -417,7 +417,7 @@ Generates an immutable commit snapshot containing the staged workspace states.
 sequenceDiagram
     actor User
     participant CLI as cmd/commit.go (Cobra)
-    participant Core as internal/purrCommands/Commit.go
+    participant Core as internal/purrcommands/Commit.go
     participant OS as Filesystem (.purr/)
 
     User->>CLI: Runs "purr commit -m <msg>"

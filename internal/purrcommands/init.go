@@ -1,7 +1,7 @@
-package purrCommands
+package purrcommands
 
 import (
-	"Persephone/internal/platform"
+	"persephone/internal/platform"
 	"bytes"
 	"encoding/binary"
 	"errors"

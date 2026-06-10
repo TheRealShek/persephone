@@ -1,7 +1,7 @@
 package main
 
 import (
-	"Persephone/cmd"
+	"persephone/cmd"
 )
 
 var Version = "dev"

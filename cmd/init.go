@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"Persephone/internal/purrCommands"
-	"Persephone/internal/ui"
+	"persephone/internal/purrcommands"
+	"persephone/internal/ui"
 	"bufio"
 	"errors"
 	"fmt"
@@ -21,8 +21,8 @@ var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Init repository",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := purrCommands.InitPurrDirectories("."); err != nil {
-			if errors.Is(err, purrCommands.ErrRepositoryAlreadyInitialized) {
+		if err := purrcommands.InitPurrDirectories("."); err != nil {
+			if errors.Is(err, purrcommands.ErrRepositoryAlreadyInitialized) {
 				confirmed, confirmErr := confirmReinitialize(cmd.InOrStdin(), cmd.OutOrStdout())
 				if confirmErr != nil {
 					return confirmErr
@@ -31,7 +31,7 @@ var initCmd = &cobra.Command{
 					fmt.Fprintln(cmd.OutOrStdout(), ui.Metadata("Reinitialization cancelled"))
 					return nil
 				}
-				if err := purrCommands.ReinitializePurrDirectories("."); err != nil {
+				if err := purrcommands.ReinitializePurrDirectories("."); err != nil {
 					return err
 				}
 				fmt.Fprintln(cmd.OutOrStdout(), ui.Successf("Reinitialized existing repository"))

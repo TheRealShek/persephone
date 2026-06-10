@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"Persephone/internal/objects"
+	"persephone/internal/objects"
 )
 
 // WriteBlobWithSHA reads a file, serializes it into a Git-compatible blob object,

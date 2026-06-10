@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"Persephone/internal/purrCommands"
+	"persephone/internal/purrcommands"
 
 	"github.com/spf13/cobra"
 )
@@ -12,7 +12,7 @@ var logCmd = &cobra.Command{
 	Use:   "log",
 	Short: "Show commit history",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return purrCommands.LogCommits(".", cmd.OutOrStdout())
+		return purrcommands.LogCommits(".", cmd.OutOrStdout())
 	},
 }
 

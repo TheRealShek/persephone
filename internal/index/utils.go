@@ -1,7 +1,7 @@
 package index
 
 import (
-	"Persephone/internal/platform"
+	"persephone/internal/platform"
 	"os"
 )
 

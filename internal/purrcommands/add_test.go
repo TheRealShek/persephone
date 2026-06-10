@@ -1,9 +1,9 @@
-package purrCommands_test
+package purrcommands_test
 
 import (
-	"Persephone/internal/index"
-	"Persephone/internal/purrCommands"
-	"Persephone/internal/testutils"
+	"persephone/internal/index"
+	"persephone/internal/purrcommands"
+	"persephone/internal/testutils"
 
 	"bytes"
 	"fmt"
@@ -31,7 +31,7 @@ func TestAddAllPurrFiles_ConcurrencyStress(t *testing.T) {
 	os.Chdir(repo)
 	defer os.Chdir(originalWD)
 
-	err := purrCommands.AddPurrFiles(".")
+	err := purrcommands.AddPurrFiles(".")
 	if err != nil {
 		t.Fatalf("AddPurrFiles failed: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestAddAllPurrFiles_AbortsOnFailure_PreservesIndex(t *testing.T) {
 	os.Chdir(repo)
 	defer os.Chdir(originalWD)
 
-	err := purrCommands.AddPurrFiles(".")
+	err := purrcommands.AddPurrFiles(".")
 	if err != nil {
 		t.Fatalf("Initial AddPurrFiles failed: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestAddAllPurrFiles_AbortsOnFailure_PreservesIndex(t *testing.T) {
 	badSymlink := filepath.Join(repo, "broken.txt")
 	os.Symlink(filepath.Join(repo, "does_not_exist"), badSymlink)
 
-	err = purrCommands.AddPurrFiles(".")
+	err = purrcommands.AddPurrFiles(".")
 	if err == nil {
 		t.Fatalf("Expected AddPurrFiles to fail due to broken symlink, but it succeeded")
 	}
@@ -95,7 +95,7 @@ func TestAddSpecificFiles_SingleFile(t *testing.T) {
 	os.Chdir(repo)
 	defer os.Chdir(originalWD)
 
-	err := purrCommands.AddPurrFiles("hello.txt")
+	err := purrcommands.AddPurrFiles("hello.txt")
 	if err != nil {
 		t.Fatalf("AddPurrFiles(\"hello.txt\") failed: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestAddSpecificFiles_HiddenFileSkipped(t *testing.T) {
 	defer os.Chdir(originalWD)
 
 	// Adding a hidden file by name should skip it
-	err := purrCommands.AddPurrFiles(".hidden")
+	err := purrcommands.AddPurrFiles(".hidden")
 	if err != nil {
 		t.Fatalf("AddPurrFiles should not fail for hidden files, got: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestAddSpecificFiles_DirectoryRejected(t *testing.T) {
 	os.Chdir(repo)
 	defer os.Chdir(originalWD)
 
-	err := purrCommands.AddPurrFiles("subdir")
+	err := purrcommands.AddPurrFiles("subdir")
 	if err == nil {
 		t.Fatal("Expected error when adding a directory by name, but got nil")
 	}
@@ -161,7 +161,7 @@ func TestAddPurrFiles_NoPurrDirectory(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(originalWD)
 
-	err := purrCommands.AddPurrFiles(".")
+	err := purrcommands.AddPurrFiles(".")
 	if err == nil {
 		t.Fatal("Expected error when .purr doesn't exist, but got nil")
 	}
@@ -178,7 +178,7 @@ func TestAddPurrFiles_NoArgs(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := purrCommands.AddPurrFiles()
+	err := purrcommands.AddPurrFiles()
 
 	w.Close()
 	os.Stdout = stdout
@@ -203,7 +203,7 @@ func TestAddAllFiles_SkipsHiddenDirectories(t *testing.T) {
 	os.Chdir(repo)
 	defer os.Chdir(originalWD)
 
-	err := purrCommands.AddPurrFiles(".")
+	err := purrcommands.AddPurrFiles(".")
 	if err != nil {
 		t.Fatalf("AddPurrFiles(\".\") failed: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestAddAllFiles_IdempotentReAdd(t *testing.T) {
 	defer os.Chdir(originalWD)
 
 	// Add once
-	err := purrCommands.AddPurrFiles(".")
+	err := purrcommands.AddPurrFiles(".")
 	if err != nil {
 		t.Fatalf("First AddPurrFiles failed: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestAddAllFiles_IdempotentReAdd(t *testing.T) {
 	entries1, _ := index.ReadIndex(indexPath)
 
 	// Add again without changes
-	err = purrCommands.AddPurrFiles(".")
+	err = purrcommands.AddPurrFiles(".")
 	if err != nil {
 		t.Fatalf("Second AddPurrFiles failed: %v", err)
 	}
@@ -270,7 +270,7 @@ func TestAddSpecificFiles_MultipleFiles(t *testing.T) {
 	os.Chdir(repo)
 	defer os.Chdir(originalWD)
 
-	err := purrCommands.AddPurrFiles("a.txt", "c.txt")
+	err := purrcommands.AddPurrFiles("a.txt", "c.txt")
 	if err != nil {
 		t.Fatalf("AddPurrFiles with multiple files failed: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestAddSpecificFiles_NonExistentFile(t *testing.T) {
 	os.Chdir(repo)
 	defer os.Chdir(originalWD)
 
-	err := purrCommands.AddPurrFiles("does_not_exist.txt")
+	err := purrcommands.AddPurrFiles("does_not_exist.txt")
 	if err != nil {
 		t.Fatalf("Expected nil when adding non-existent file (should unstage), got error: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestAddAllFiles_NestedDirectories(t *testing.T) {
 	os.Chdir(repo)
 	defer os.Chdir(originalWD)
 
-	err := purrCommands.AddPurrFiles(".")
+	err := purrcommands.AddPurrFiles(".")
 	if err != nil {
 		t.Fatalf("AddPurrFiles(\".\") failed: %v", err)
 	}
@@ -353,7 +353,7 @@ func TestAddAllFiles_BlobObjectCreated(t *testing.T) {
 	os.Chdir(repo)
 	defer os.Chdir(originalWD)
 
-	err := purrCommands.AddPurrFiles(".")
+	err := purrcommands.AddPurrFiles(".")
 	if err != nil {
 		t.Fatalf("AddPurrFiles failed: %v", err)
 	}
@@ -379,7 +379,7 @@ func TestAddAllFiles_DetectsDeletions(t *testing.T) {
 	os.Chdir(repo)
 	defer os.Chdir(originalWD)
 
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("First add failed: %v", err)
 	}
 
@@ -393,7 +393,7 @@ func TestAddAllFiles_DetectsDeletions(t *testing.T) {
 	os.Remove(filePath)
 
 	// Add again
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("Second add failed: %v", err)
 	}
 
@@ -412,7 +412,7 @@ func TestAddSpecificFiles_UnstageDeletedFile(t *testing.T) {
 	os.Chdir(repo)
 	defer os.Chdir(originalWD)
 
-	if err := purrCommands.AddPurrFiles("file.txt"); err != nil {
+	if err := purrcommands.AddPurrFiles("file.txt"); err != nil {
 		t.Fatalf("First add failed: %v", err)
 	}
 
@@ -426,7 +426,7 @@ func TestAddSpecificFiles_UnstageDeletedFile(t *testing.T) {
 	os.Remove(filePath)
 
 	// Add the specific file again
-	if err := purrCommands.AddPurrFiles("file.txt"); err != nil {
+	if err := purrcommands.AddPurrFiles("file.txt"); err != nil {
 		t.Fatalf("Second add failed: %v", err)
 	}
 

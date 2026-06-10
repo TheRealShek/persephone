@@ -1,10 +1,10 @@
-package purrCommands_test
+package purrcommands_test
 
 import (
-	"Persephone/internal/objects"
-	"Persephone/internal/purrCommands"
-	"Persephone/internal/refs"
-	"Persephone/internal/testutils"
+	"persephone/internal/objects"
+	"persephone/internal/purrcommands"
+	"persephone/internal/refs"
+	"persephone/internal/testutils"
 
 	"compress/zlib"
 	"io"
@@ -44,11 +44,11 @@ func addAndCommit(t *testing.T, repo string, files map[string]string, message st
 
 	chdir(t, repo)
 
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("AddPurrFiles() error = %v", err)
 	}
 
-	if err := purrCommands.CommitPurrFiles(repo, message, "Test User", "test@example.com"); err != nil {
+	if err := purrcommands.CommitPurrFiles(repo, message, "Test User", "test@example.com"); err != nil {
 		t.Fatalf("CommitPurrFiles() error = %v", err)
 	}
 
@@ -90,10 +90,10 @@ func TestCommitPurrFiles_SecondCommit(t *testing.T) {
 	testutils.WriteTestFile(t, repo, "file.txt", "version 2\n")
 	chdir(t, repo)
 
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("AddPurrFiles() for second commit error = %v", err)
 	}
-	if err := purrCommands.CommitPurrFiles(repo, "second commit", "Test User", "test@example.com"); err != nil {
+	if err := purrcommands.CommitPurrFiles(repo, "second commit", "Test User", "test@example.com"); err != nil {
 		t.Fatalf("CommitPurrFiles() second commit error = %v", err)
 	}
 
@@ -114,7 +114,7 @@ func TestCommitPurrFiles_NothingStaged(t *testing.T) {
 	repo := testutils.SetupTestRepo(t)
 
 	// Don't add any files — index is empty
-	err := purrCommands.CommitPurrFiles(repo, "empty commit", "Test User", "test@example.com")
+	err := purrcommands.CommitPurrFiles(repo, "empty commit", "Test User", "test@example.com")
 	if err == nil {
 		t.Fatal("expected error when nothing staged, got nil")
 	}
@@ -132,7 +132,7 @@ func TestCommitPurrFiles_CleanTree(t *testing.T) {
 	}, "initial commit")
 
 	// Try to commit again without any changes — tree hash should match
-	err := purrCommands.CommitPurrFiles(repo, "duplicate commit", "Test User", "test@example.com")
+	err := purrcommands.CommitPurrFiles(repo, "duplicate commit", "Test User", "test@example.com")
 	if err == nil {
 		t.Fatal("expected error on clean-tree commit, got nil")
 	}
@@ -198,7 +198,7 @@ func TestCommitPurrFiles_MissingConfig(t *testing.T) {
 	testutils.WriteTestFile(t, repo, "file.txt", "data")
 
 	chdir(t, repo)
-	if err := purrCommands.AddPurrFiles("."); err != nil {
+	if err := purrcommands.AddPurrFiles("."); err != nil {
 		t.Fatalf("AddPurrFiles() error = %v", err)
 	}
 
@@ -213,12 +213,12 @@ func TestCommitPurrFiles_MissingConfig(t *testing.T) {
 	// Let me check how config is handled... Oh, cmd/commit.go reads the config and passes author and email!
 	// So CommitPurrFiles doesn't enforce config. I should test that empty string fails.
 
-	err := purrCommands.CommitPurrFiles(repo, "msg", "", "test@example.com")
+	err := purrcommands.CommitPurrFiles(repo, "msg", "", "test@example.com")
 	if err == nil {
 		t.Fatal("expected error with empty author, got nil")
 	}
 
-	err = purrCommands.CommitPurrFiles(repo, "msg", "Test User", "")
+	err = purrcommands.CommitPurrFiles(repo, "msg", "Test User", "")
 	if err == nil {
 		t.Fatal("expected error with empty email, got nil")
 	}

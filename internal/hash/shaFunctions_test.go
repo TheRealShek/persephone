@@ -1,7 +1,7 @@
 package hash
 
 import (
-	"Persephone/internal/objects"
+	"persephone/internal/objects"
 	"bytes"
 	"compress/zlib"
 	"crypto/sha1"

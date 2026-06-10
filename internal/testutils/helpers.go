@@ -1,7 +1,7 @@
 package testutils
 
 import (
-	"Persephone/internal/purrCommands"
+	"persephone/internal/purrcommands"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,7 +13,7 @@ func SetupTestRepo(t *testing.T) string {
 	t.Helper()
 	repo := t.TempDir()
 
-	err := purrCommands.InitPurrDirectories(repo)
+	err := purrcommands.InitPurrDirectories(repo)
 	if err != nil {
 		t.Fatalf("failed to init purr repo: %v", err)
 	}

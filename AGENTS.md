@@ -7,9 +7,9 @@ Stack: Go 1.25+ · Cobra · flat-file `.purr/objects` · local only
 
 ## CRITICAL RULES
 
-- **File naming**: `internal/purrCommands/` uses PascalCase — `Add.go`, `Commit.go`, `Init.go`. Never create lowercase variants. Wrong casing creates shadow files and breaks the build.
-- **Module import**: always `Persephone/internal/...` (capital P). `persephone/` is wrong.
-- **UI output**: never use lipgloss directly in `cmd/` or `internal/purrCommands/`. Always use `internal/ui` helpers.
+- **File naming**: `internal/purrcommands/` uses lowercase filenames — `add.go`, `commit.go`, `init.go`. Never create PascalCase variants.
+- **Module import**: always `persephone/internal/...` (lowercase). `Persephone/` is wrong.
+- **UI output**: never use lipgloss directly in `cmd/` or `internal/purrcommands/`. Always use `internal/ui` helpers.
   - `ui.Warningf` — execution continues after this
   - `ui.Errorf` — execution stops here, or dangerous state / data corruption
   - `ui.Successf`, `ui.Infof`, `ui.Hintf` — for success, general info, actionable suggestions

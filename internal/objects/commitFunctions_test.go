@@ -1,8 +1,8 @@
 package objects
 
 import (
-	"Persephone/internal/config"
-	"Persephone/internal/refs"
+	"persephone/internal/config"
+	"persephone/internal/refs"
 	"bytes"
 	"compress/zlib"
 	"crypto/sha1"

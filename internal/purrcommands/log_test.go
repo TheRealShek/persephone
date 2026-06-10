@@ -1,10 +1,10 @@
-package purrCommands_test
+package purrcommands_test
 
 import (
-	"Persephone/internal/config"
-	"Persephone/internal/objects"
-	"Persephone/internal/purrCommands"
-	"Persephone/internal/testutils"
+	"persephone/internal/config"
+	"persephone/internal/objects"
+	"persephone/internal/purrcommands"
+	"persephone/internal/testutils"
 
 	"bytes"
 	"compress/zlib"
@@ -62,7 +62,7 @@ func TestLogCommits_EmptyHistory(t *testing.T) {
 	repo := testutils.SetupTestRepo(t)
 	var out bytes.Buffer
 
-	if err := purrCommands.LogCommits(repo, &out); err != nil {
+	if err := purrcommands.LogCommits(repo, &out); err != nil {
 		t.Fatalf("LogCommits() error = %v", err)
 	}
 	if got := out.String(); got != "No commits yet\n" {
@@ -79,7 +79,7 @@ func TestLogCommits_NewestToOldest(t *testing.T) {
 	updateTestHEAD(t, repo, secondHash)
 
 	var out bytes.Buffer
-	if err := purrCommands.LogCommits(repo, &out); err != nil {
+	if err := purrcommands.LogCommits(repo, &out); err != nil {
 		t.Fatalf("LogCommits() error = %v", err)
 	}
 
@@ -106,7 +106,7 @@ func TestLogCommits_RejectsParentCycle(t *testing.T) {
 	updateTestHEAD(t, repo, firstHash)
 
 	var out bytes.Buffer
-	err := purrCommands.LogCommits(repo, &out)
+	err := purrcommands.LogCommits(repo, &out)
 	if err == nil || !strings.Contains(err.Error(), "cycle detected") {
 		t.Fatalf("LogCommits() error = %v, want cycle detection error", err)
 	}
@@ -114,7 +114,7 @@ func TestLogCommits_RejectsParentCycle(t *testing.T) {
 
 func TestLogCommits_RejectsNonRepository(t *testing.T) {
 	var out bytes.Buffer
-	err := purrCommands.LogCommits(t.TempDir(), &out)
+	err := purrcommands.LogCommits(t.TempDir(), &out)
 	if err == nil || !strings.Contains(err.Error(), "not a purr repository") {
 		t.Fatalf("LogCommits() error = %v, want repository error", err)
 	}

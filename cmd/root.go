@@ -4,7 +4,7 @@ Copyright © 2025 [Abhishek Thakur](https://github.com/TheRealShek/persephone)
 package cmd
 
 import (
-	"Persephone/internal/ui"
+	"persephone/internal/ui"
 	"errors"
 	"fmt"
 	"os"

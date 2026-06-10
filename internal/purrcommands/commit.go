@@ -1,11 +1,11 @@
-package purrCommands
+package purrcommands
 
 import (
-	"Persephone/internal/config"
-	"Persephone/internal/index"
-	"Persephone/internal/objects"
-	"Persephone/internal/refs"
-	"Persephone/internal/ui"
+	"persephone/internal/config"
+	"persephone/internal/index"
+	"persephone/internal/objects"
+	"persephone/internal/refs"
+	"persephone/internal/ui"
 
 	"bytes"
 	"compress/zlib"

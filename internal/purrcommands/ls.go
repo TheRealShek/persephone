@@ -1,8 +1,8 @@
-package purrCommands
+package purrcommands
 
 import (
-	"Persephone/internal/index"
-	"Persephone/internal/ui"
+	"persephone/internal/index"
+	"persephone/internal/ui"
 
 	"fmt"
 	"os"
