@@ -93,6 +93,19 @@ The foundation of the VCS is being laid down. Here is the current command suppor
 
 > _Note: Everything else (branch, merge, remote, diff, etc.) is currently **not implemented**._
 
+### Coming Next
+
+| Command | Description |
+| :--- | :--- |
+| `purr status` | Show staged, unstaged, untracked |
+| `purr branch` | Create and list branches |
+| `purr checkout` | Switch branches |
+| `purr diff` | Show unstaged changes |
+| `purr stash` | Stash workspace changes |
+| `purr merge` | Merge branches (AST-based) |
+
+_Note: The implementation order may change._
+
 ---
 
 ## Future Directions

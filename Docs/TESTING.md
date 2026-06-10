@@ -38,7 +38,7 @@ go test -race ./...
 
 This will specifically stress:
 - `TestAddAllPurrFiles_ConcurrencyStress`: Adds 100+ files simultaneously to exercise the bounded semaphore.
-- Map writes in `Add.go` protected by `sync.Mutex`.
+- Map writes in `add.go` protected by `sync.Mutex`.
 
 ---
 
@@ -46,9 +46,9 @@ This will specifically stress:
 
 If you are only working on a specific feature, you can run tests for just that package to save time.
 
-**Core Utilities & Pure Logic (Tree hashing, Index binary serialization):**
+**Core Hashing & Staging Index Logic (Tree hashing, Index binary serialization):**
 ```bash
-go test -v ./internal/utils
+go test -v ./internal/hash ./internal/index
 ```
 
 **Commands & File System Integration (Add, Commit):**
@@ -87,7 +87,7 @@ When adding new tests, strictly adhere to the following principles:
 1. **No Mocking the File System**: Do not use `afero` or other in-memory file systems. A VCS interacts heavily with real OS quirks. Always use `t.TempDir()` (via `testutils.SetupTestRepo(t)`) for integration testing.
 2. **Determinism over Real Time**: When generating Git-compatible objects (like Commits), inject a static `time.Time` rather than relying on `time.Now()`. This guarantees stable SHA-1 hashes in tests.
 3. **Abuse Edge Cases**: Test binary serialization (`index.go`) with paths exceeding 0xFFF length, misaligned NUL padding, and broken magic headers.
-4. **Time-Of-Check to Time-Of-Use (TOCTOU)**: `Add.go` uses broken symlinks intentionally injected mid-execution to verify that the application correctly handles files disappearing between enumeration and hashing.
+4. **Time-Of-Check to Time-Of-Use (TOCTOU)**: `add.go` uses broken symlinks intentionally injected mid-execution to verify that the application correctly handles files disappearing between enumeration and hashing.
 
 ---
 
@@ -132,3 +132,12 @@ purr commit -m "Manual verification snapshot"
 # 7. Inspect HEAD ancestry
 purr log
 ```
+
+---
+
+## 6. Continuous Integration & Release Gates
+
+Our release pipeline in `.github/workflows/release.yml` includes a mandatory `verify` job that executes before any build or auto-tagging step:
+
+- **Verification checks**: Runs `go vet ./...` and `go test -race ./...` to guarantee code correctness, static safety, and absence of concurrency race conditions.
+- **Gatekeeper**: Any failure in the verification job blocks release creation, ensuring only validated code is compiled and distributed.

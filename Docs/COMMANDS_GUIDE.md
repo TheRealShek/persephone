@@ -53,7 +53,7 @@ Persephone is designed around three primary logical environments that mirror Git
 * **Command**: `purr init`
 * **Short Description**: Bootstraps a new, empty Persephone repository.
 * **CLI Entrypoint**: `cmd/init.go`
-* **Core Controller**: `internal/purrcommands/Init.go:InitPurrDirectories()`
+* **Core Controller**: `internal/purrcommands/init.go:InitPurrDirectories()`
 
 ### 2.2 How the Code Works
 1. **Directory Inspection**: Core checks if a `.purr` directory already exists at the requested path.
@@ -72,7 +72,7 @@ Persephone is designed around three primary logical environments that mirror Git
 sequenceDiagram
     actor Developer
     participant CLI as cmd/init.go
-    participant Core as purrcommands/Init.go
+    participant Core as purrcommands/init.go
     participant OS as Filesystem
 
     Developer->>CLI: Runs "purr init"
@@ -113,14 +113,14 @@ sequenceDiagram
 * **Command**: `purr add <file|dir|.>`
 * **Short Description**: Stages files by updating their contents in the object store and recording metadata in the index.
 * **CLI Entrypoint**: `cmd/add.go`
-* **Core Controller**: `internal/purrcommands/Add.go:AddPurrFiles()`
+* **Core Controller**: `internal/purrcommands/add.go:AddPurrFiles()`
   - Routes to `addAllPurrFiles()` for bulk staging (`purr add .`).
   - Routes to `addSpecificPurrFiles()` for targeted paths.
 
 ### 3.2 How the Code Works
 1. **Integrity Check**: Verifies that the `.purr` directory exists.
 2. **Index Loading**: Reads `.purr/index` into an in-memory map keyed by relative file paths.
-3. **Traversal (Staging All)**: Recursively crawls the repository root using `utils.WalkAndAddFiles()`, skipping hidden files/directories (any path component starting with `.`).
+3. **Traversal (Staging All)**: Recursively crawls the repository root using `fsutil.WalkAndAddFiles()`, skipping hidden files/directories (any path component starting with `.`).
 4. **Concurrency-First Worker Pool**: Spawns dynamic worker goroutines bounded by a semaphore channel of size `runtime.NumCPU() * 5`.
 5. **Stat Cache Evaluation (Stat Bypass)**: For each file:
    - Retrieves filesystem `os.FileInfo` metadata.
@@ -129,16 +129,16 @@ sequenceDiagram
 6. **Object Compression & Storage**: If modified or new:
    - Reads file content, prepends standard Git-style header (`blob {size}\x00`), and computes the SHA-1 checksum.
    - Compresses the payload via standard `zlib` writer.
-   - Stores it using `utils.StoreObject()`, which handles directory fan-out: `.purr/objects/{SHA1[:2]}/{SHA1[2:]}`.
+   - Stores it using `objects.StoreObject()`, which handles directory fan-out: `.purr/objects/{SHA1[:2]}/{SHA1[2:]}`.
 7. **Thread-Safe Map Updates**: The main goroutine coordinates writing to the shared `indexMap` and recording errors to `processingErrs[]` using a `sync.Mutex` around critical sections.
 8. **Sorting and Serialization**: Converts the index map to a slice, sorts it lexicographically by path, and writes the byte array back to `.purr/index`.
 
 ```mermaid
 sequenceDiagram
     actor Developer
-    participant Core as purrcommands/Add.go
+    participant Core as purrcommands/add.go
     participant WP as Worker Pool (Goroutines)
-    participant Store as utils/shaFunctions.go
+    participant Store as internal/hash/shaFunctions.go
     participant OS as Filesystem
 
     Developer->>Core: Runs "purr add ."
@@ -187,7 +187,7 @@ sequenceDiagram
 * **Flags**:
   - `-m, --message`: Specifies the commit message (required).
 * **CLI Entrypoint**: `cmd/commit.go`
-* **Core Controller**: `internal/purrcommands/Commit.go:CommitPurrFiles()`
+* **Core Controller**: `internal/purrcommands/commit.go:CommitPurrFiles()`
 
 ### 4.2 How the Code Works
 1. **Pre-flight Config Check**: Validates that global user configurations `user.name` and `user.email` are set in `~/.purrconfig`. If missing, aborts with a stylized warning and actionable setup commands.
@@ -196,7 +196,7 @@ sequenceDiagram
    - Converts the flat list of staging paths into structured `TreeEntries`.
    - Groups files recursively by directory components.
    - For subdirectories, calls `BuildTreeObject()` to serialize their contents into child tree payloads.
-   - Hashes and writes child trees to `.purr/objects/xx/yyyy...` using `utils.StoreObject()`.
+   - Hashes and writes child trees to `.purr/objects/xx/yyyy...` using `objects.StoreObject()`.
    - Incorporates the subdirectory node back into the parent tree with directory mode `040000`.
    - Generates the root Tree object, hashes it, and stores the compressed payload.
 4. **Prevent Empty Commits**:
@@ -213,8 +213,8 @@ sequenceDiagram
 sequenceDiagram
     actor Developer
     participant CLI as cmd/commit.go
-    participant Core as purrcommands/Commit.go
-    participant Util as utils/commitFunctions.go
+    participant Core as purrcommands/commit.go
+    participant Util as internal/objects/commitFunctions.go
     participant OS as Filesystem
 
     Developer->>CLI: Runs "purr commit -m 'feat: initial'"
@@ -257,7 +257,7 @@ sequenceDiagram
   - `purr config user.name`
   - `purr config user.name "Alice Smith"`
 * **CLI Entrypoint**: `cmd/config.go`
-* **Core Controller**: `internal/purrcommands/Config.go:ConfigCommand()`
+* **Core Controller**: `internal/purrcommands/config.go:ConfigCommand()`
 
 ### 5.2 How the Code Works
 1. **Routing**:
@@ -280,7 +280,7 @@ sequenceDiagram
 * **Flags**:
   - `-d, --debug`: Displays low-level stat cache metadata of each staged file.
 * **CLI Entrypoint**: `cmd/ls.go`
-* **Core Controller**: `internal/purrcommands/Ls.go:ListFiles()`
+* **Core Controller**: `internal/purrcommands/ls.go:ListFiles()`
 
 ### 6.2 How the Code Works
 1. **Repository Verification**: Assures `.purr` exists.
@@ -301,15 +301,15 @@ sequenceDiagram
 * **Command**: `purr log`
 * **Short Description**: Shows the linear history of commits starting from HEAD.
 * **CLI Entrypoint**: `cmd/log.go`
-* **Core Controller**: `internal/purrcommands/Log.go:LogCommits()`
+* **Core Controller**: `internal/purrcommands/log.go:LogCommits()`
 
 ### 7.2 How the Code Works
-1. **Resolve HEAD**: Calls `utils.GetHEADCommit()` to locate the latest tip commit hash. If no commits exist, outputs `"No commits yet"` and exits.
+1. **Resolve HEAD**: Calls `refs.GetHEADCommit()` to locate the latest tip commit hash. If no commits exist, outputs `"No commits yet"` and exits.
 2. **ancestry Traversal Loop**:
    - Sets up a loop running as long as the current `commitHash` is not empty.
    - Employs a `visited` hash map (`map[string]struct{}`) to track walked commits.
    - If the current hash has already been visited, aborts with a cyclic history error.
-   - Loads the compressed commit object from `.purr/objects/{hash[:2]}/{hash[2:]}` using `utils.ReadCommitObject()`.
+   - Loads the compressed commit object from `.purr/objects/{hash[:2]}/{hash[2:]}` using `objects.ReadCommitObject()`.
    - Parses the decompressed headers and commit message body.
    - Outputs formatted commit information (full commit hash, author details, UTC date, and commit message).
    - Reassigns the current `commitHash` to the commit's `ParentHash` to walk backward in history.
